@@ -92,6 +92,15 @@ def main(argv: Optional[list] = None):
         default="plain",
     )
 
+    # console
+    console_parser = subparsers.add_parser(
+        "console", help="Launch governance dashboard (web UI)"
+    )
+    console_parser.add_argument(
+        "--port", type=int, default=8420,
+        help="HTTP port (default: 8420)",
+    )
+
     args = parser.parse_args(argv)
 
     if not args.command:
@@ -123,6 +132,8 @@ def main(argv: Optional[list] = None):
             _cmd_export(gateway, args.as_json)
         elif args.command == "context":
             _cmd_context(gateway, args.query, args.format)
+        elif args.command == "console":
+            _cmd_console(args.db, args.namespace, args.port)
     finally:
         gateway.close()
 
@@ -269,6 +280,11 @@ def _cmd_export(gw: RetrievalGateway, as_json: bool):
     else:
         for n in nodes:
             print(f"{n.node_type.name:20s} {n.key:30s} {n.value[:60]}")
+
+
+def _cmd_console(db_path: str, namespace: str, port: int):
+    from noesis.console.server import run_console
+    run_console(db_path=db_path, namespace=namespace, port=port)
 
 
 def _cmd_context(gw: RetrievalGateway, query: str, fmt: str):

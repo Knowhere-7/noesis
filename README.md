@@ -69,6 +69,9 @@ noesis/
   gateway/
     retrieval.py     # Session lifecycle, context retrieval, drift scoring
     providers.py     # Claude / OpenAI / Ollama adapters
+  console/
+    server.py        # Zero-dep HTTP server for governance dashboard
+    dashboard.html   # Live web UI — trust topology, drift, cascade log
   cli.py             # Command-line inspection tools
 ```
 
@@ -116,7 +119,20 @@ noesis retrospective --hours 168      # Weekly retrospective
 noesis cascade                        # Run grief cascade
 noesis export --json                  # Export all nodes
 noesis context --format claude        # Preview assembled context
+noesis console --port 8420            # Launch governance dashboard
 ```
+
+## Governance Console
+
+Live web dashboard for memory inspection and drift monitoring. Zero dependencies — uses Python's stdlib `http.server`.
+
+```bash
+noesis console                        # http://localhost:8420
+noesis console --db prod.db --port 9000
+python -m noesis.console --db prod.db
+```
+
+Shows: vault statistics, node list with trust/grief/state bars, drift signals, cascade log, retrospective results. Interactive controls for triggering grief cascades, trust decay, and retrospectives.
 
 ## The Skill Lifecycle
 

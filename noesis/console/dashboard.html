@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noesis Governance Console</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #05070a;
+        }
+        .panel-glow {
+            box-shadow: 0 0 25px -5px rgba(20, 184, 166, 0.12);
+        }
+        .cascade-glow {
+            box-shadow: 0 0 30px -5px rgba(239, 68, 68, 0.15);
+        }
+        .faith-glow {
+            box-shadow: 0 0 20px -5px rgba(147, 51, 234, 0.15);
+        }
+        .trust-bar { transition: width 0.6s ease-out; }
+        .grief-bar { transition: width 0.6s ease-out; }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+        .node-row:hover { background-color: rgba(20, 184, 166, 0.04); }
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    </style>
+</head>
+<html class="dark text-slate-200 antialiased">
+<body class="min-h-screen p-4 md:p-6 flex flex-col overflow-x-hidden">
+
+    <!-- Header -->
+    <header class="w-full max-w-[1600px] mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-teal-950/40 pb-4 mb-6 gap-3">
+        <div>
+            <div class="flex items-center gap-3">
+                <span id="live-badge" class="text-xs bg-teal-500/10 text-teal-400 border border-teal-500/30 px-2 py-0.5 rounded uppercase tracking-widest font-bold pulse-dot">Live</span>
+                <span id="poll-status" class="text-xs text-slate-600">connecting...</span>
+            </div>
+            <h1 class="text-xl font-bold tracking-tight text-slate-100 mt-1">NOESIS // GOVERNANCE CONSOLE</h1>
+            <p class="text-xs text-slate-500 mt-0.5">Runtime trust layer &mdash; memory inspection &amp; drift monitoring</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="bg-slate-950/60 border border-slate-900 px-3 py-2 rounded-lg text-xs space-y-0.5">
+                <div class="text-slate-500">Namespace</div>
+                <div id="stat-namespace" class="text-teal-400 font-bold">—</div>
+            </div>
+            <div class="bg-slate-950/60 border border-slate-900 px-3 py-2 rounded-lg text-xs space-y-0.5">
+                <div class="text-slate-500">Port</div>
+                <div class="text-teal-400 font-bold">8420</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Stats Bar -->
+    <section class="w-full max-w-[1600px] mx-auto grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        <div class="bg-slate-950/40 border border-slate-900 p-3 rounded-lg panel-glow">
+            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">Total Nodes</span>
+            <span id="stat-total" class="text-lg font-bold text-teal-400">—</span>
+        </div>
+        <div class="bg-slate-950/40 border border-slate-900 p-3 rounded-lg panel-glow">
+            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">Avg Trust</span>
+            <span id="stat-trust" class="text-lg font-bold text-emerald-400">—</span>
+        </div>
+        <div class="bg-slate-950/40 border border-slate-900 p-3 rounded-lg panel-glow">
+            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">Session Energy</span>
+            <span id="stat-energy" class="text-lg font-bold text-amber-400">—</span>
+        </div>
+        <div class="bg-slate-950/40 border border-slate-900 p-3 rounded-lg panel-glow">
+            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">Sacred Nodes</span>
+            <span id="stat-sacred" class="text-lg font-bold text-purple-400">—</span>
+        </div>
+        <div class="bg-slate-950/40 border border-slate-900 p-3 rounded-lg panel-glow">
+            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">In Crisis</span>
+            <span id="stat-crisis" class="text-lg font-bold text-red-400">—</span>
+        </div>
+        <div class="bg-slate-950/40 border border-slate-900 p-3 rounded-lg panel-glow">
+            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">Skills Active</span>
+            <span id="stat-skills" class="text-lg font-bold text-cyan-400">—</span>
+        </div>
+    </section>
+
+    <!-- Main Grid -->
+    <main class="w-full max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+
+        <!-- LEFT COLUMN: Node List -->
+        <div class="lg:col-span-2 space-y-4">
+            <!-- Filters -->
+            <div class="flex flex-wrap gap-2 items-center">
+                <span class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Filter:</span>
+                <select id="filter-type" class="bg-slate-950/80 border border-slate-800 text-xs text-slate-300 px-2 py-1 rounded cursor-pointer focus:border-teal-600 focus:outline-none">
+                    <option value="">All Types</option>
+                    <option value="GUARDRAIL">Guardrail</option>
+                    <option value="PROFILE">Profile</option>
+                    <option value="PROJECT_STATE">Project State</option>
+                    <option value="FACT">Fact</option>
+                    <option value="EPISODE">Episode</option>
+                    <option value="SKILL">Skill</option>
+                    <option value="EVALUATION">Evaluation</option>
+                </select>
+                <select id="filter-state" class="bg-slate-950/80 border border-slate-800 text-xs text-slate-300 px-2 py-1 rounded cursor-pointer focus:border-teal-600 focus:outline-none">
+                    <option value="">All States</option>
+                    <option value="HEALTHY">Healthy</option>
+                    <option value="GRIEVING">Grieving</option>
+                    <option value="CRISIS">Crisis</option>
+                    <option value="PURGED">Purged</option>
+                </select>
+                <span id="node-count" class="text-[10px] text-slate-600 ml-auto"></span>
+            </div>
+
+            <!-- Node Table -->
+            <div class="bg-slate-950/40 border border-slate-900 rounded-xl panel-glow overflow-hidden">
+                <div class="overflow-x-auto max-h-[520px] overflow-y-auto">
+                    <table class="w-full text-xs">
+                        <thead class="sticky top-0 bg-slate-950/95 border-b border-slate-800 z-10">
+                            <tr class="text-left text-[10px] text-slate-500 uppercase tracking-wider">
+                                <th class="px-3 py-2">Key</th>
+                                <th class="px-3 py-2">Type</th>
+                                <th class="px-3 py-2 w-28">Trust</th>
+                                <th class="px-3 py-2 w-28">Grief</th>
+                                <th class="px-3 py-2">Faith</th>
+                                <th class="px-3 py-2">State</th>
+                                <th class="px-3 py-2">Sacred</th>
+                            </tr>
+                        </thead>
+                        <tbody id="node-table-body">
+                            <tr><td colspan="7" class="px-3 py-8 text-center text-slate-600">Loading nodes...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Node Detail Panel -->
+            <div id="node-detail" class="hidden bg-slate-950/40 border border-teal-900/40 rounded-xl p-4 panel-glow fade-in">
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <h3 class="text-sm font-bold text-teal-400" id="detail-key">—</h3>
+                        <span class="text-[10px] text-slate-500" id="detail-type">—</span>
+                    </div>
+                    <button onclick="closeDetail()" class="text-slate-600 hover:text-slate-400 text-xs px-2 py-0.5 border border-slate-800 rounded hover:border-slate-600 transition-colors">&times; Close</button>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                    <div class="bg-slate-950/60 p-2 rounded border border-slate-900">
+                        <span class="text-[10px] text-slate-500 block">Trust</span>
+                        <span id="detail-trust" class="text-sm font-bold text-emerald-400">—</span>
+                    </div>
+                    <div class="bg-slate-950/60 p-2 rounded border border-slate-900">
+                        <span class="text-[10px] text-slate-500 block">Grief</span>
+                        <span id="detail-grief" class="text-sm font-bold text-red-400">—</span>
+                    </div>
+                    <div class="bg-slate-950/60 p-2 rounded border border-slate-900">
+                        <span class="text-[10px] text-slate-500 block">Faith</span>
+                        <span id="detail-faith" class="text-sm font-bold text-purple-400">—</span>
+                    </div>
+                    <div class="bg-slate-950/60 p-2 rounded border border-slate-900">
+                        <span class="text-[10px] text-slate-500 block">Importance</span>
+                        <span id="detail-importance" class="text-sm font-bold text-amber-400">—</span>
+                    </div>
+                </div>
+                <div class="bg-slate-950/80 border border-slate-900 rounded p-3 text-xs text-slate-400 max-h-40 overflow-y-auto whitespace-pre-wrap" id="detail-value">—</div>
+                <div class="mt-2 flex gap-4 text-[10px] text-slate-600">
+                    <span>Accesses: <span id="detail-accesses" class="text-slate-400">—</span></span>
+                    <span>Created: <span id="detail-created" class="text-slate-400">—</span></span>
+                    <span>Deps: <span id="detail-deps" class="text-slate-400">—</span></span>
+                    <span>Dependents: <span id="detail-dependents" class="text-slate-400">—</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="space-y-4">
+
+            <!-- Drift Signals -->
+            <div class="bg-slate-950/40 border border-slate-900 p-4 rounded-xl panel-glow">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-2 mb-3">Drift Signals</h3>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-400">Continuity</span>
+                        <span id="drift-continuity" class="font-bold text-emerald-400">—</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-400">Groundedness</span>
+                        <span id="drift-groundedness" class="font-bold text-emerald-400">—</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-400">Drift</span>
+                        <span id="drift-drift" class="font-bold text-amber-400">—</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-400">Trust</span>
+                        <span id="drift-trust" class="font-bold text-teal-400">—</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-slate-400">Action Risk</span>
+                        <span id="drift-risk" class="font-bold text-red-400">—</span>
+                    </div>
+                    <div class="border-t border-slate-800 pt-2 mt-2 flex justify-between items-center text-xs">
+                        <span class="text-slate-300 font-bold">Composite Health</span>
+                        <span id="drift-health" class="font-bold text-lg text-teal-400">—</span>
+                    </div>
+                    <div class="flex gap-2 mt-1">
+                        <span id="drift-retrieve" class="hidden text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-bold uppercase">Retrieve</span>
+                        <span id="drift-reflect" class="hidden text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/20 px-1.5 py-0.5 rounded font-bold uppercase">Reflect</span>
+                        <span id="drift-refuse" class="hidden text-[10px] bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded font-bold uppercase">Refuse</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Type Breakdown -->
+            <div class="bg-slate-950/40 border border-slate-900 p-4 rounded-xl panel-glow">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-2 mb-3">Node Types</h3>
+                <div id="type-breakdown" class="space-y-1.5">
+                    <div class="text-xs text-slate-600 text-center py-2">Loading...</div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="bg-slate-950/40 border border-slate-900 p-4 rounded-xl cascade-glow">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-2 mb-3">Actions</h3>
+                <div class="space-y-2">
+                    <button id="btn-cascade" onclick="triggerCascade()" class="w-full text-xs bg-red-950/40 hover:bg-red-950/60 border border-red-900/50 hover:border-red-700/60 text-red-400 px-3 py-2 rounded-lg transition-all duration-200 font-bold uppercase tracking-wider">
+                        &#9760; Run Grief Cascade
+                    </button>
+                    <button id="btn-decay" onclick="triggerDecay()" class="w-full text-xs bg-amber-950/30 hover:bg-amber-950/50 border border-amber-900/40 hover:border-amber-700/50 text-amber-400 px-3 py-2 rounded-lg transition-all duration-200 font-bold uppercase tracking-wider">
+                        &#9201; Apply Trust Decay
+                    </button>
+                    <button onclick="runRetrospective()" class="w-full text-xs bg-purple-950/30 hover:bg-purple-950/50 border border-purple-900/40 hover:border-purple-700/50 text-purple-400 px-3 py-2 rounded-lg transition-all duration-200 font-bold uppercase tracking-wider">
+                        &#128269; Run Retrospective
+                    </button>
+                </div>
+                <div id="action-result" class="hidden mt-3 text-[10px] bg-slate-950/80 border border-slate-800 rounded p-2 text-slate-400 max-h-32 overflow-y-auto whitespace-pre-wrap"></div>
+            </div>
+
+            <!-- Cascade Log -->
+            <div class="bg-slate-950/40 border border-slate-900 p-4 rounded-xl cascade-glow">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2 mb-3">
+                    <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cascade Log</h3>
+                    <span id="cascade-count" class="text-[10px] text-slate-600">—</span>
+                </div>
+                <div id="cascade-log" class="space-y-1 max-h-48 overflow-y-auto">
+                    <div class="text-xs text-slate-600 text-center py-2">No purges recorded</div>
+                </div>
+            </div>
+
+            <!-- Retrospective Summary -->
+            <div id="retro-panel" class="hidden bg-slate-950/40 border border-purple-900/30 p-4 rounded-xl faith-glow fade-in">
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-2 mb-3">Retrospective</h3>
+                <div class="space-y-2 text-xs">
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Episodes</span>
+                        <span id="retro-episodes" class="text-purple-400 font-bold">—</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Health</span>
+                        <span id="retro-health" class="text-purple-400 font-bold">—</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Trust Trend</span>
+                        <span id="retro-trend" class="font-bold">—</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-400">Patterns</span>
+                        <span id="retro-patterns" class="text-slate-300">—</span>
+                    </div>
+                    <div id="retro-recommendations" class="mt-2 border-t border-slate-800 pt-2 space-y-1"></div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full max-w-[1600px] mx-auto mt-6 pt-4 border-t border-slate-900/50 flex justify-between items-center text-[10px] text-slate-700">
+        <span>Noesis v0.1.0 &mdash; Runtime trust layer for persistent AI agents</span>
+        <span>Built from <a href="https://github.com/SpookyGroup/murmuration" class="text-teal-700 hover:text-teal-500 transition-colors" target="_blank">Murmuration</a> swarm intelligence</span>
+    </footer>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────
+const API = '';  // same origin
+const POLL_INTERVAL = 3000;  // ms
+let pollTimer = null;
+let currentNodes = [];
+
+// ── Helpers ─────────────────────────────────────────────────────────
+async function api(path) {
+    const res = await fetch(API + path);
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return res.json();
+}
+
+async function apiPost(path) {
+    const res = await fetch(API + path, { method: 'POST' });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return res.json();
+}
+
+function $(id) { return document.getElementById(id); }
+
+function stateColor(state) {
+    const map = { HEALTHY: 'text-emerald-400', GRIEVING: 'text-amber-400', CRISIS: 'text-red-400', PURGED: 'text-slate-600' };
+    return map[state] || 'text-slate-400';
+}
+
+function stateBg(state) {
+    const map = {
+        HEALTHY: 'bg-emerald-500/10 border-emerald-500/20',
+        GRIEVING: 'bg-amber-500/10 border-amber-500/20',
+        CRISIS: 'bg-red-500/10 border-red-500/20',
+        PURGED: 'bg-slate-500/10 border-slate-500/20'
+    };
+    return map[state] || 'bg-slate-500/10 border-slate-500/20';
+}
+
+function typeColor(type) {
+    const map = {
+        GUARDRAIL: 'text-purple-400', PROFILE: 'text-cyan-400',
+        PROJECT_STATE: 'text-blue-400', FACT: 'text-teal-400',
+        EPISODE: 'text-amber-400', SKILL: 'text-emerald-400',
+        EVALUATION: 'text-slate-400'
+    };
+    return map[type] || 'text-slate-400';
+}
+
+function trustColor(v) {
+    if (v >= 0.7) return 'bg-emerald-500';
+    if (v >= 0.4) return 'bg-amber-500';
+    return 'bg-red-500';
+}
+
+function griefColor(v) {
+    if (v >= 0.7) return 'bg-red-500';
+    if (v >= 0.3) return 'bg-amber-500';
+    return 'bg-slate-700';
+}
+
+function driftValueColor(v) {
+    if (v >= 0.7) return 'text-emerald-400';
+    if (v >= 0.4) return 'text-amber-400';
+    return 'text-red-400';
+}
+
+function fmtTime(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts * 1000);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+}
+
+// ── Stats ───────────────────────────────────────────────────────────
+async function loadStats() {
+    try {
+        const s = await api('/api/stats');
+        $('stat-total').textContent = s.total_nodes;
+        $('stat-trust').textContent = (s.avg_trust || 0).toFixed(3);
+        $('stat-energy').textContent = (s.session_energy || 0).toFixed(1);
+        $('stat-namespace').textContent = s.namespace || '—';
+        $('poll-status').textContent = 'last poll: ' + new Date().toLocaleTimeString();
+        $('poll-status').className = 'text-xs text-slate-500';
+
+        // Sacred count & crisis count come from nodes
+        // Type breakdown
+        if (s.by_type) {
+            const el = $('type-breakdown');
+            const types = Object.entries(s.by_type).sort((a,b) => b[1] - a[1]);
+            el.innerHTML = types.map(([t, c]) => `
+                <div class="flex justify-between items-center text-xs">
+                    <span class="${typeColor(t)}">${t}</span>
+                    <span class="text-slate-400 font-bold">${c}</span>
+                </div>
+            `).join('');
+        }
+    } catch(e) {
+        $('poll-status').textContent = 'error: ' + e.message;
+        $('poll-status').className = 'text-xs text-red-500';
+    }
+}
+
+// ── Nodes ───────────────────────────────────────────────────────────
+async function loadNodes() {
+    try {
+        const typeF = $('filter-type').value;
+        const stateF = $('filter-state').value;
+        let url = '/api/nodes';
+        const params = [];
+        if (typeF) params.push('type=' + typeF);
+        if (stateF) params.push('state=' + stateF);
+        if (params.length) url += '?' + params.join('&');
+
+        const nodes = await api(url);
+        currentNodes = nodes;
+
+        // Update derived stats
+        const sacredCount = nodes.filter(n => n.sacred).length;
+        const crisisCount = nodes.filter(n => n.state === 'CRISIS').length;
+        const skillCount = nodes.filter(n => n.type === 'SKILL' && n.skill_status === 'PROMOTED').length;
+        $('stat-sacred').textContent = sacredCount;
+        $('stat-crisis').textContent = crisisCount;
+        $('stat-skills').textContent = skillCount;
+
+        $('node-count').textContent = nodes.length + ' node' + (nodes.length !== 1 ? 's' : '');
+
+        const tbody = $('node-table-body');
+        if (nodes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="px-3 py-8 text-center text-slate-600">No nodes match filters</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = nodes.map(n => `
+            <tr class="node-row border-b border-slate-900/50 cursor-pointer transition-colors" onclick="showDetail('${n.key.replace(/'/g, "\\'")}')">
+                <td class="px-3 py-2 font-bold text-slate-200 truncate max-w-[180px]" title="${n.key}">${n.key}</td>
+                <td class="px-3 py-2 ${typeColor(n.type)}">${n.type}</td>
+                <td class="px-3 py-2">
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-16 h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                            <div class="trust-bar h-full ${trustColor(n.trust)} rounded-full" style="width:${(n.trust * 100).toFixed(0)}%"></div>
+                        </div>
+                        <span class="text-slate-400 w-8 text-right">${n.trust.toFixed(2)}</span>
+                    </div>
+                </td>
+                <td class="px-3 py-2">
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-16 h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                            <div class="grief-bar h-full ${griefColor(n.grief)} rounded-full" style="width:${(n.grief * 100).toFixed(0)}%"></div>
+                        </div>
+                        <span class="text-slate-400 w-8 text-right">${n.grief.toFixed(2)}</span>
+                    </div>
+                </td>
+                <td class="px-3 py-2 text-purple-400">${n.faith.toFixed(2)}</td>
+                <td class="px-3 py-2">
+                    <span class="text-[10px] px-1.5 py-0.5 rounded border font-bold uppercase ${stateColor(n.state)} ${stateBg(n.state)}">${n.state}</span>
+                </td>
+                <td class="px-3 py-2 text-center">${n.sacred ? '<span class="text-purple-400" title="Sacred — immutable">&#9733;</span>' : ''}</td>
+            </tr>
+        `).join('');
+    } catch(e) {
+        console.error('loadNodes:', e);
+    }
+}
+
+// ── Node Detail ─────────────────────────────────────────────────────
+async function showDetail(key) {
+    try {
+        const n = await api('/api/node/' + encodeURIComponent(key));
+        if (n.error) return;
+
+        $('detail-key').textContent = n.key;
+        $('detail-type').textContent = n.type + (n.sacred ? ' ★ SACRED' : '');
+        $('detail-trust').textContent = n.trust.toFixed(4);
+        $('detail-grief').textContent = n.grief.toFixed(4);
+        $('detail-faith').textContent = n.faith.toFixed(4);
+        $('detail-importance').textContent = n.importance.toFixed(4);
+        $('detail-value').textContent = n.value || '(empty)';
+        $('detail-accesses').textContent = n.access_count;
+        $('detail-created').textContent = fmtTime(n.created_at);
+        $('detail-deps').textContent = (n.dependencies || []).length;
+        $('detail-dependents').textContent = (n.dependents || []).length;
+
+        $('node-detail').classList.remove('hidden');
+        $('node-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch(e) {
+        console.error('showDetail:', e);
+    }
+}
+
+function closeDetail() {
+    $('node-detail').classList.add('hidden');
+}
+
+// ── Drift ───────────────────────────────────────────────────────────
+async function loadDrift() {
+    try {
+        const d = await api('/api/drift');
+        $('drift-continuity').textContent = d.continuity.toFixed(4);
+        $('drift-continuity').className = 'font-bold ' + driftValueColor(d.continuity);
+        $('drift-groundedness').textContent = d.groundedness.toFixed(4);
+        $('drift-groundedness').className = 'font-bold ' + driftValueColor(d.groundedness);
+        $('drift-drift').textContent = d.drift.toFixed(4);
+        $('drift-drift').className = 'font-bold ' + driftValueColor(1 - d.drift);
+        $('drift-trust').textContent = d.trust.toFixed(4);
+        $('drift-trust').className = 'font-bold ' + driftValueColor(d.trust);
+        $('drift-risk').textContent = d.action_risk.toFixed(4);
+        $('drift-risk').className = 'font-bold ' + driftValueColor(1 - d.action_risk);
+        $('drift-health').textContent = d.composite_health.toFixed(2);
+        $('drift-health').className = 'font-bold text-lg ' + driftValueColor(d.composite_health);
+
+        $('drift-retrieve').classList.toggle('hidden', !d.should_retrieve);
+        $('drift-reflect').classList.toggle('hidden', !d.should_reflect);
+        $('drift-refuse').classList.toggle('hidden', !d.should_refuse);
+    } catch(e) {
+        console.error('loadDrift:', e);
+    }
+}
+
+// ── Cascade Log ─────────────────────────────────────────────────────
+async function loadCascadeLog() {
+    try {
+        const log = await api('/api/cascade-log');
+        const el = $('cascade-log');
+        $('cascade-count').textContent = log.length + ' purge' + (log.length !== 1 ? 's' : '');
+
+        if (log.length === 0) {
+            el.innerHTML = '<div class="text-xs text-slate-600 text-center py-2">No purges recorded</div>';
+            return;
+        }
+
+        el.innerHTML = log.map(r => `
+            <div class="text-[11px] bg-red-950/20 border border-red-900/20 rounded px-2 py-1.5 flex justify-between items-center">
+                <div>
+                    <span class="text-red-400 font-bold">${r.node_key}</span>
+                    <span class="text-slate-600 ml-1">${r.node_type}</span>
+                </div>
+                <div class="text-slate-600 text-[10px]">
+                    T:${(r.trust_at_purge || 0).toFixed(2)} G:${(r.grief_at_purge || 0).toFixed(2)}
+                </div>
+            </div>
+        `).join('');
+    } catch(e) {
+        console.error('loadCascadeLog:', e);
+    }
+}
+
+// ── Actions ─────────────────────────────────────────────────────────
+async function triggerCascade() {
+    const btn = $('btn-cascade');
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+    try {
+        const r = await apiPost('/api/cascade');
+        showActionResult(`Grief cascade complete.\nPurged: ${r.purged_count} node(s)` +
+            (r.purged_ids && r.purged_ids.length ? '\nIDs: ' + r.purged_ids.join(', ') : ''));
+        await refresh();
+    } catch(e) {
+        showActionResult('Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#9760; Run Grief Cascade';
+    }
+}
+
+async function triggerDecay() {
+    const btn = $('btn-decay');
+    btn.disabled = true;
+    btn.textContent = 'Applying...';
+    try {
+        await apiPost('/api/decay');
+        showActionResult('Trust decay applied to all nodes.');
+        await refresh();
+    } catch(e) {
+        showActionResult('Error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '&#9201; Apply Trust Decay';
+    }
+}
+
+async function runRetrospective() {
+    try {
+        const r = await api('/api/retrospective?hours=168');
+        $('retro-episodes').textContent = r.episodes_analyzed;
+        $('retro-health').textContent = (r.overall_health || 0).toFixed(2);
+
+        const trend = r.trust_trend || '—';
+        const trendEl = $('retro-trend');
+        trendEl.textContent = trend;
+        trendEl.className = 'font-bold ' + (trend === 'rising' ? 'text-emerald-400' : trend === 'declining' ? 'text-red-400' : 'text-slate-400');
+
+        $('retro-patterns').textContent = r.patterns_found || 0;
+
+        const recEl = $('retro-recommendations');
+        const recs = r.recommendations || [];
+        recEl.innerHTML = recs.length
+            ? recs.map(rec => `<div class="text-[10px] text-purple-300/80">&rarr; ${rec}</div>`).join('')
+            : '<div class="text-[10px] text-slate-600">No recommendations</div>';
+
+        $('retro-panel').classList.remove('hidden');
+    } catch(e) {
+        showActionResult('Retrospective error: ' + e.message);
+    }
+}
+
+function showActionResult(msg) {
+    const el = $('action-result');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    setTimeout(() => el.classList.add('hidden'), 8000);
+}
+
+// ── Polling ─────────────────────────────────────────────────────────
+async function refresh() {
+    await Promise.all([loadStats(), loadNodes(), loadDrift(), loadCascadeLog()]);
+}
+
+function startPolling() {
+    refresh();
+    pollTimer = setInterval(refresh, POLL_INTERVAL);
+}
+
+// ── Filter Events ───────────────────────────────────────────────────
+$('filter-type').addEventListener('change', loadNodes);
+$('filter-state').addEventListener('change', loadNodes);
+
+// ── Init ────────────────────────────────────────────────────────────
+startPolling();
+</script>
+
+</body>
+</html>
