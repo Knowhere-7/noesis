@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "noesis"
+version = "0.1.0"
+description = "Runtime trust layer for persistent AI agents — swarm-governed memory, self-reflection, and procedural skill generation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Proprietary"}
+authors = [
+    {name = "Ghost (Jamarian Payne)"},
+]
+keywords = [
+    "ai-safety",
+    "memory",
+    "trust",
+    "swarm-intelligence",
+    "anti-jailbreak",
+    "agent-framework",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# Zero dependencies for core — stdlib only
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+providers = [
+    "anthropic>=0.25.0",
+    "openai>=1.0",
+]
+
+[project.scripts]
+noesis = "noesis.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["noesis*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"

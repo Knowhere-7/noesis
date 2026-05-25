@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sovereign Swarm Engine Bay</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
+        body {
+            font-family: 'JetBrains+Mono', monospace;
+            background-color: #05070a;
+        }
+        /* Custom glow effects for the glassmorphism UI */
+        .engine-glow {
+            box-shadow: 0 0 25px -5px rgba(20, 184, 166, 0.15);
+        }
+        .shark-glow {
+            box-shadow: 0 0 35px -5px rgba(239, 68, 68, 0.2);
+        }
+    </style>
+</head>
+<html class="dark text-slate-200 antialiased">
+<body class="min-h-screen p-4 md:p-8 flex flex-col justify-between overflow-x-hidden">
+
+    <header class="w-full max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-teal-950/40 pb-6 mb-6 gap-4">
+        <div>
+            <div class="flex items-center gap-3">
+                <span class="text-xs bg-teal-500/10 text-teal-400 border border-teal-500/30 px-2 py-0.5 rounded uppercase tracking-widest font-bold animate-pulse">Live Runtime</span>
+                <span class="text-xs text-slate-500">TICK: 54118</span>
+            </div>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-100 mt-1">PERFECT_SWARM // ENGINE_BAY</h1>
+        </div>
+        <div class="flex items-center gap-4 bg-slate-950/60 border border-slate-900 px-4 py-3 rounded-lg engine-glow">
+            <div class="w-10 h-10 rounded-full border border-teal-500/30 bg-teal-950/20 flex items-center justify-between overflow-hidden relative group">
+                <span class="text-xl mx-auto cursor-default select-none group-hover:scale-110 transition-transform">🦈</span>
+            </div>
+            <div>
+                <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold">System Architect</p>
+                <p class="text-sm font-bold text-teal-400">SHARK_OPERATOR</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+
+        <div class="space-y-6 lg:col-span-1">
+
+            <div class="bg-slate-950/40 border border-slate-900 p-6 rounded-xl space-y-4 backdrop-blur-md engine-glow">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-900 pb-2">Swarm Telemetry</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-900/60">
+                        <span class="text-xs text-slate-500 block">Active Nodes</span>
+                        <span class="text-xl font-bold text-teal-400">236</span>
+                    </div>
+                    <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-900/60">
+                        <span class="text-xs text-slate-500 block">Anomaly Rate</span>
+                        <span class="text-xl font-bold text-emerald-400">0.25</span>
+                    </div>
+                    <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-900/60">
+                        <span class="text-xs text-slate-500 block">Jailbreak Breaks</span>
+                        <span class="text-xl font-bold text-slate-200">0</span>
+                    </div>
+                    <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-900/60">
+                        <span class="text-xs text-slate-500 block">Gini Coefficient</span>
+                        <span class="text-xl font-bold text-amber-500/90">0.829</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-950/40 border border-slate-900 p-6 rounded-xl space-y-4 backdrop-blur-md engine-glow">
+                <div class="flex justify-between items-center border-b border-slate-900 pb-2">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Sovereign Memory Vault</h3>
+                    <span class="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded font-bold uppercase">Decoupled</span>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Historical context vectors are isolated locally. Central system retained logs: <span class="text-red-400 font-bold">0 bytes</span>.
+                </p>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center text-xs p-2 bg-slate-950/60 border border-slate-900 rounded">
+                        <span class="text-slate-500">Rosetta Layer Status</span>
+                        <span class="text-teal-400 font-medium">PASSIVE_COMPILING</span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs p-2 bg-slate-950/60 border border-slate-900 rounded">
+                        <span class="text-slate-500">Last Input Token State</span>
+                        <span class="text-emerald-400 font-mono font-medium">SIGNAL::0.25</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-950/40 border border-slate-900 p-6 rounded-xl space-y-4 backdrop-blur-md engine-glow">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest border-b border-slate-900 pb-2">Circuit Breaker Log</h3>
+                <div class="space-y-2 max-h-[160px] overflow-y-auto pr-1 text-xs">
+                    <div class="p-2 bg-red-950/10 border border-red-900/30 rounded flex justify-between items-center">
+                        <span class="text-red-400 font-bold">AGENT_1028 -> SEPPUKU</span>
+                        <span class="text-slate-500">Faith: 1.0</span>
+                    </div>
+                    <div class="p-2 bg-red-950/10 border border-red-900/30 rounded flex justify-between items-center">
+                        <span class="text-red-400 font-bold">AGENT_1014 -> SEPPUKU</span>
+                        <span class="text-slate-500">Faith: 1.0</span>
+                    </div>
+                    <div class="p-2 bg-slate-950/60 border border-slate-900 rounded flex justify-between items-center text-slate-400">
+                        <span>NODE_RESTABILIZE_SUCCESS</span>
+                        <span class="text-slate-500">Tick: 41197</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="lg:col-span-2 bg-slate-950/30 border border-slate-900 p-6 rounded-xl flex flex-col items-center justify-center relative engine-glow backdrop-blur-md min-h-[500px]">
+            <div class="absolute top-4 left-6 flex items-center gap-2 z-10">
+                <div class="w-2 h-2 rounded-full bg-teal-500 animate-ping"></div>
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Dynamic Geometric Viewport</h3>
+            </div>
+
+            <canvas id="swarmCanvas" class="w-full max-h-[460px] bg-slate-950/80 rounded-lg border border-slate-900/40 cursor-crosshair"></canvas>
+
+            <div class="w-full flex flex-col sm:flex-row justify-between text-[11px] text-slate-500 mt-4 gap-2">
+                <div><span>[X_BOUND: 778] [Y_BOUND: 5516]</span></div>
+                <div class="flex gap-4">
+                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-teal-400"></span> Active Node</span>
+                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span> Sentinel (1012)</span>
+                    <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Anchor Ground</span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="w-full max-w-7xl mx-auto border-t border-slate-900/60 pt-4 mt-6 flex flex-col sm:flex-row justify-between text-xs text-slate-600 gap-2">
+        <div><span>OS_PHASE: <span class="text-emerald-500/80 font-bold">GOLDEN</span></span></div>
+        <div><span>PROPRIETARY ZERO-TRUST LAYER // PRIVATE DEPLOYMENT MODEL</span></div>
+    </footer>
+
+    <script>
+        const canvas = document.getElementById('swarmCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth - 48;
+            canvas.height = 420;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Instantiate simulation elements modeled exactly after your JSON data geometry
+        const nodes = [];
+        const numNodes = 120; // Compressed visualization count for screen clarity
+
+        // Sacred Anchor Grounds (Static structural markers directly matching your JSON coordinates)
+        const sacredGrounds = [
+            {x: 0.25, y: 0.3}, {x: 0.7, y: 0.25}, {x: 0.5, y: 0.7}, {x: 0.8, y: 0.6}
+        ];
+
+        // Sentinel Agent 1012 (Isolated geometric anchor coordinate)
+        const sentinel = { x: canvas.width * 0.4, y: canvas.height * 0.2, baseSize: 6 };
+
+        for(let i=0; i<numNodes; i++) {
+            nodes.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                vx: (Math.random() - 0.5) * 1.5,
+                vy: (Math.random() - 0.5) * 1.5,
+                radius: 2,
+                color: 'rgba(45, 212, 191, 0.75)' // Crisp Tailwind Teal-400
+            });
+        }
+
+        function animateSwarm() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Render Static Sacred Anchor Grounds
+            sacredGrounds.forEach(ground => {
+                const gx = ground.x * canvas.width;
+                const gy = ground.y * canvas.height;
+                ctx.beginPath();
+                ctx.arc(gx, gy, 4, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(245, 158, 11, 0.25)'; // Amber ground ring
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
+                ctx.stroke();
+            });
+
+            // 2. Render Isolated Sentinel 1012
+            ctx.beginPath();
+            ctx.arc(sentinel.x, sentinel.y, sentinel.baseSize + Math.sin(Date.now() / 200) * 1, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.8)'; // Red containment sentinel alert glow
+            ctx.fill();
+
+            // 3. Move and Connect Swarm Nodes (Simulating real-time high-bandwidth communication)
+            nodes.forEach((node, i) => {
+                node.x += node.vx;
+                node.y += node.vy;
+
+                // Simple boundaries wrapper
+                if (node.x < 0 || node.x > canvas.width) node.vx *= -1;
+                if (node.y < 0 || node.y > canvas.height) node.vy *= -1;
+
+                // Visualizing proximity calculations dynamically
+                for(let j = i + 1; j < nodes.length; j++) {
+                    const nextNode = nodes[j];
+                    const dist = Math.hypot(node.x - nextNode.x, node.y - nextNode.y);
+
+                    if(dist < 55) { // Micro cluster proximity vector link
+                        ctx.beginPath();
+                        ctx.moveTo(node.x, node.y);
+                        ctx.lineTo(nextNode.x, nextNode.y);
+                        ctx.strokeStyle = `rgba(20, 184, 166, ${0.15 * (1 - dist/55)})`;
+                        ctx.lineWidth = 0.6;
+                        ctx.stroke();
+                    }
+                }
+
+                // Node structural center
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+                ctx.fillStyle = node.color;
+                ctx.fill();
+            });
+
+            requestAnimationFrame(animateSwarm);
+        }
+        animateSwarm();
+    </script>
+</body>
+</html>
