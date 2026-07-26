@@ -47,12 +47,27 @@ class GriefCascade:
     PROPAGATION_FACTOR = 0.6   # grief transfers at 60% to dependents
     FAITH_RESISTANCE = 0.45    # faith reduces incoming grief by up to 45%
 
+    # ── Sub-threshold pressure (ported from archon monitor SW-1) ───────
+    # "Signals parked below threshold still accumulate pressure."
+    # A per-node crisis line alone is evadable: an attacker who spreads
+    # contradictions thinly keeps every node STRESSED and never trips a
+    # breaker (measured 1.0x friction in benchmarks/friction.py). Grief
+    # parked below the line is still grief — it accumulates.
+    SUB_THRESHOLD_FLOOR = 0.3        # matches TrustGate.GRIEF_STRESS_THRESHOLD
+    AGGREGATE_CRISIS_THRESHOLD = 1.8  # summed sub-crisis grief == a crisis
+
     def __init__(self):
         self.cascade_log: List[Dict] = []  # audit trail of all purges
         self._visited: Set[str] = set()     # prevent infinite recursion
+        self.last_pressure: float = 0.0     # observable: aggregate at last run
 
     def evaluate(self, store: MemoryStore) -> List[str]:
         """Scan all nodes and trigger cascades for contaminated ones.
+
+        Two triggers:
+          1. Per-node crisis  — a single node at grief >= CRISIS_THRESHOLD
+          2. Aggregate pressure — many sub-crisis nodes summing past
+             AGGREGATE_CRISIS_THRESHOLD (the distributed/quiet attack)
 
         Returns list of purged node IDs.
         """
@@ -64,6 +79,25 @@ class GriefCascade:
                 branch_purged = self._cascade(node, store)
                 purged.extend(branch_purged)
 
+        # Trigger 2 — the quiet attack. Escalate the TRIGGER only; every
+        # existing judgment still applies (sacred immunity, faith resistance,
+        # seppuku criteria) so this widens detection, never the death warrant.
+        self.last_pressure = self.aggregate_pressure(store)
+        if self.last_pressure >= self.AGGREGATE_CRISIS_THRESHOLD:
+            cohort = self._stressed_cohort(store)
+            logger.warning(
+                "Aggregate grief pressure %.2f >= %.2f across %d stressed "
+                "nodes — no single node in crisis. Escalating cohort.",
+                self.last_pressure, self.AGGREGATE_CRISIS_THRESHOLD, len(cohort),
+            )
+            for node in cohort:
+                if node.id in self._visited:
+                    continue
+                node.grief = max(node.grief, self.CRISIS_THRESHOLD)
+                node.grief_state = GriefState.CONTAMINATED
+                store.backend.upsert(node)
+                purged.extend(self._cascade(node, store))
+
         if purged:
             logger.info(
                 "Grief cascade purged %d nodes: %s",
@@ -72,6 +106,31 @@ class GriefCascade:
             )
 
         return purged
+
+    def aggregate_pressure(self, store: MemoryStore) -> float:
+        """Total grief parked BELOW the per-node crisis line.
+
+        Observable by design — the console and audit log need to show why a
+        cohort was escalated when no individual node looked critical.
+        """
+        total = 0.0
+        for node in store.all_nodes():
+            if node.is_sacred or node.grief_state in (
+                GriefState.PURGED, GriefState.SACRED
+            ):
+                continue
+            if self.SUB_THRESHOLD_FLOOR <= node.grief < self.CRISIS_THRESHOLD:
+                total += node.grief
+        return round(total, 3)
+
+    def _stressed_cohort(self, store: MemoryStore) -> List[MemoryNode]:
+        """Nodes carrying sub-crisis grief — the contributors to pressure."""
+        return [
+            n for n in store.all_nodes()
+            if not n.is_sacred
+            and n.grief_state not in (GriefState.PURGED, GriefState.SACRED)
+            and self.SUB_THRESHOLD_FLOOR <= n.grief < self.CRISIS_THRESHOLD
+        ]
 
     def trigger(self, node: MemoryNode, store: MemoryStore) -> List[str]:
         """Manually trigger a cascade from a specific contaminated node."""
