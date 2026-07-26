@@ -346,7 +346,14 @@ class TrustGate:
         self._update_grief_state(existing)
 
     def _update_grief_state(self, node: MemoryNode):
-        """Update grief state machine — mirrors Murmuration's agent.js."""
+        """Update grief state machine — mirrors Murmuration's agent.js.
+
+        Full bidirectional transitions:
+          grief >= 0.9  → CONTAMINATED
+          0.3 <= grief < 0.9  → STRESSED
+          grief < 0.2  → ACTIVE (recovered)
+        Agents can heal from any state back to ACTIVE.
+        """
         if node.is_sacred:
             node.grief_state = GriefState.SACRED
             return
@@ -355,8 +362,8 @@ class TrustGate:
             node.grief_state = GriefState.CONTAMINATED
         elif node.grief >= self.GRIEF_STRESS_THRESHOLD:
             node.grief_state = GriefState.STRESSED
-        elif node.grief_state == GriefState.STRESSED and node.grief < 0.2:
-            node.grief_state = GriefState.ACTIVE  # recovered
+        elif node.grief < 0.2:
+            node.grief_state = GriefState.ACTIVE  # recovered from any state
 
     def reset_session_energy(self):
         """Reset energy budget for a new session."""
