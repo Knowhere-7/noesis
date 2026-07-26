@@ -19,8 +19,7 @@ WHY THERE IS NO LLM IN THE LOOP
 -------------------------------
 The claim under test is a property of the memory layer, so it is measured
 deterministically against the real TrustGate — no sampling, no temperature, no
-API keys, byte-reproducible. This mirrors the design rule already stated in
-trust_gate.score_output: "The LLM is the subject, not the judge."
+API keys, byte-reproducible. The LLM remains the subject, not the judge.
 
 INDEPENDENCE NOTE (read before publishing anything)
 ---------------------------------------------------
@@ -47,7 +46,18 @@ from typing import Any, Dict, List, Optional
 # Make the package importable when run from the repo root.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from noesis.schema import Guardrail, MemoryNode, NodeType  # noqa: E402
+from noesis.governor.authority import (  # noqa: E402
+    AuthorRecord,
+    StaticAuthorityResolver,
+    WritePermission,
+)
+from noesis.schema import (  # noqa: E402
+    Fact,
+    GriefState,
+    Guardrail,
+    MemoryNode,
+    NodeType,
+)
 from noesis.vault.sqlite_backend import SQLiteBackend  # noqa: E402
 from noesis.vault.store import MemoryStore  # noqa: E402
 
@@ -111,16 +121,83 @@ def _node_type(name: str) -> NodeType:
     return getattr(NodeType, name, NodeType.EPHEMERAL)
 
 
-def _build_store(arm: str, tmpdir: str):
+def _build_store(
+    arm: str,
+    tmpdir: str,
+    *,
+    author_id: str = "attacker",
+    author_trust: float = 0.5,
+    owner: bool = False,
+):
     if arm == "noesis":
         db = os.path.join(tmpdir, f"bench_{os.getpid()}_{id(tmpdir)}.db")
-        return MemoryStore(SQLiteBackend(db), namespace="bench")
+        permissions = (
+            frozenset(WritePermission)
+            if owner
+            else frozenset(
+                {
+                    WritePermission.WRITE_MEMORY,
+                    WritePermission.WRITE_EPISODE,
+                }
+            )
+        )
+        authority = StaticAuthorityResolver(
+            [
+                AuthorRecord(
+                    author_id=author_id,
+                    trust=author_trust,
+                    permissions=permissions,
+                    namespaces=frozenset({"bench"}),
+                )
+            ]
+        )
+        return MemoryStore(
+            SQLiteBackend(db),
+            namespace="bench",
+            author_id=author_id,
+            authority=authority,
+        )
     return NaiveStore(namespace="bench")
+
+
+def _write(store, arm: str, node: MemoryNode, claimed_trust: float):
+    """Keep caller-asserted trust only in the intentionally naive baseline."""
+    if arm == "baseline":
+        return store.write(node, author_trust=claimed_trust)
+    return store.write(node)
+
+
+def _seed_guardrail(store, arm: str, key: str, rule: str):
+    if arm == "baseline":
+        return store.write_guardrail(key, rule)
+    store.backend.upsert(
+        Guardrail(key=key, rule=rule, value=rule, namespace="bench")
+    )
+    return True, "trusted fixture seeded"
+
+
+def _seed_fact(store, arm: str, fact: Dict[str, Any]):
+    node = Fact(
+        key=fact["key"],
+        value=fact["value"],
+        importance=0.7,
+        namespace="bench",
+    )
+    if arm == "baseline":
+        store.write(node, author_trust=0.9)
+    else:
+        node.trust_charge = 0.9
+        store.backend.upsert(node)
+    return node
 
 
 def run_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
     """Execute one attack case against one arm and score it mechanically."""
-    store = _build_store(arm, tmpdir)
+    store = _build_store(
+        arm,
+        tmpdir,
+        author_trust=case.get("attacker_trust", 0.5),
+    )
     marker = case["payload_marker"]
 
     res = CaseResult(
@@ -133,17 +210,10 @@ def run_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
 
     # 1. Seed legitimate state (guardrails install on sacred ground).
     for g in case.get("setup_guardrails", []):
-        store.write_guardrail(g["key"], g["rule"])
+        _seed_guardrail(store, arm, g["key"], g["rule"])
 
     for f in case.get("setup_facts", []):
-        node = MemoryNode(
-            node_type=NodeType.SEMANTIC_FACT,
-            key=f["key"],
-            value=f["value"],
-            importance=0.7,
-            namespace="bench",
-        )
-        store.write(node, author_trust=0.9)
+        _seed_fact(store, arm, f)
         # Simulate an established, repeatedly-confirmed fact.
         stored = store.get(f["key"])
         if stored is not None and hasattr(store, "trust_gate"):
@@ -162,7 +232,7 @@ def run_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
                 importance=0.1,
                 namespace="bench",
             )
-            ok, reason = store.write(filler, author_trust=0.5)
+            ok, reason = _write(store, arm, filler, claimed_trust=0.5)
             res.writes_attempted += 1
             if not ok:
                 res.writes_blocked += 1
@@ -177,8 +247,22 @@ def run_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
             value=w["value"],
             importance=w.get("importance", 0.5),
             namespace="bench",
+            is_sacred=w.get("is_sacred", False),
+            grief_state=(
+                GriefState.SACRED
+                if w.get("is_sacred", False)
+                else GriefState.ACTIVE
+            ),
         )
-        ok, reason = store.write(node, author_trust=w.get("author_trust", 0.5))
+        if w.get("write_method") == "write_guardrail":
+            ok, reason = store.write_guardrail(w["key"], w["value"])
+        else:
+            ok, reason = _write(
+                store,
+                arm,
+                node,
+                claimed_trust=w.get("claimed_author_trust", 0.5),
+            )
         res.writes_attempted += 1
         if not ok:
             res.writes_blocked += 1
@@ -227,7 +311,13 @@ def run_benign_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
     over-long but legitimate message from the sovereign was refused and the
     connection dropped.
     """
-    store = _build_store(arm, tmpdir)
+    store = _build_store(
+        arm,
+        tmpdir,
+        author_id="trusted-operator",
+        author_trust=0.95,
+        owner=True,
+    )
     res = CaseResult(
         case_id=case["id"],
         attack_class=case["class"],
@@ -237,14 +327,10 @@ def run_benign_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
     )
 
     for g in case.get("setup_guardrails", []):
-        store.write_guardrail(g["key"], g["rule"])
+        _seed_guardrail(store, arm, g["key"], g["rule"])
 
     for f in case.get("setup_facts", []):
-        node = MemoryNode(
-            node_type=NodeType.SEMANTIC_FACT, key=f["key"], value=f["value"],
-            importance=0.7, namespace="bench",
-        )
-        store.write(node, author_trust=0.9)
+        _seed_fact(store, arm, f)
         stored = store.get(f["key"])
         if stored is not None and hasattr(store, "trust_gate"):
             for _ in range(f.get("confirmations", 0)):
@@ -259,7 +345,12 @@ def run_benign_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
                 node_type=NodeType.EPHEMERAL, key=f"work.{i}",
                 value="x" * bulk["size"], importance=0.4, namespace="bench",
             )
-            ok, reason = store.write(node, author_trust=bulk.get("author_trust", 0.8))
+            ok, reason = _write(
+                store,
+                arm,
+                node,
+                claimed_trust=bulk.get("claimed_author_trust", 0.8),
+            )
             res.writes_attempted += 1
             if not ok:
                 res.writes_blocked += 1
@@ -275,7 +366,15 @@ def run_benign_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
             node_type=_node_type(w["node_type"]), key=w["key"], value=value,
             importance=w.get("importance", 0.5), namespace="bench",
         )
-        ok, reason = store.write(node, author_trust=w.get("author_trust", 0.9))
+        if node.node_type == NodeType.SYSTEM_GUARDRAIL:
+            ok, reason = store.write_guardrail(node.key, node.value)
+        else:
+            ok, reason = _write(
+                store,
+                arm,
+                node,
+                claimed_trust=w.get("claimed_author_trust", 0.9),
+            )
         res.writes_attempted += 1
         if not ok:
             res.writes_blocked += 1

@@ -8,12 +8,13 @@ Serves:
   GET /api/node/:key    → Single node detail
   GET /api/context      → Assembled context preview
   GET /api/cascade-log  → Grief cascade audit log
-  GET /api/retrospective → Run and return retrospective
   GET /api/drift        → Current drift scores
   POST /api/cascade     → Trigger grief cascade
   POST /api/decay       → Apply trust decay
+  POST /api/retrospective → Run and return retrospective
 
-Uses only Python stdlib: http.server, json, urllib.
+The server binds to loopback and requires a per-process bearer token for every
+API request. Uses only Python stdlib: http.server, json, urllib.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import secrets
 import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from typing import Any, Dict, Optional
@@ -34,6 +36,17 @@ logger = logging.getLogger("noesis.console")
 
 # Global reference to gateway (set by run_console)
 _gateway: Optional[RetrievalGateway] = None
+_console_token: Optional[str] = None
+
+
+def _valid_bearer(header: Optional[str], expected_token: str) -> bool:
+    """Validate an exact bearer token without timing-sensitive comparison."""
+    if not header or not expected_token:
+        return False
+    prefix = "Bearer "
+    if not header.startswith(prefix):
+        return False
+    return secrets.compare_digest(header[len(prefix):], expected_token)
 
 
 class ConsoleHandler(SimpleHTTPRequestHandler):
@@ -46,6 +59,8 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
 
         if path == "" or path == "/index.html":
             self._serve_dashboard()
+        elif not self._is_authorized():
+            self._json_response({"error": "unauthorized"}, status=401)
         elif path == "/api/stats":
             self._api_stats()
         elif path == "/api/nodes":
@@ -58,9 +73,6 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
             self._api_context(fmt)
         elif path == "/api/cascade-log":
             self._api_cascade_log()
-        elif path == "/api/retrospective":
-            hours = float(params.get("hours", ["168"])[0])
-            self._api_retrospective(hours)
         elif path == "/api/drift":
             self._api_drift()
         else:
@@ -69,13 +81,27 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/")
+        params = parse_qs(parsed.query)
+
+        if not self._is_authorized():
+            self._json_response({"error": "unauthorized"}, status=401)
+            return
 
         if path == "/api/cascade":
             self._api_trigger_cascade()
         elif path == "/api/decay":
             self._api_trigger_decay()
+        elif path == "/api/retrospective":
+            hours = float(params.get("hours", ["168"])[0])
+            self._api_retrospective(hours)
         else:
             self.send_error(404, "Not found")
+
+    def _is_authorized(self) -> bool:
+        return _valid_bearer(
+            self.headers.get("Authorization"),
+            _console_token or "",
+        )
 
     # ── Dashboard HTML ────────────────────────────────────────────────
 
@@ -86,6 +112,10 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
         try:
             with open(html_path, "r", encoding="utf-8") as f:
                 content = f.read()
+            content = content.replace(
+                "__NOESIS_CONSOLE_TOKEN__",
+                json.dumps(_console_token or ""),
+            )
             self._respond(200, content, "text/html")
         except FileNotFoundError:
             self.send_error(500, "dashboard.html not found")
@@ -229,7 +259,7 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
     def _api_drift(self):
         # Get current context and compute drift for a null output
         nodes = _gateway.get_context_nodes()
-        drift = _gateway.store.trust_gate.score_output("", nodes)
+        drift = _gateway.store.trust_gate.score_context(nodes)
         self._json_response({
             "continuity": round(drift.continuity, 4),
             "groundedness": round(drift.groundedness, 4),
@@ -262,8 +292,9 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
     def _respond(self, status: int, body: str, content_type: str):
         self.send_response(status)
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         self.wfile.write(body.encode("utf-8"))
 
@@ -276,17 +307,21 @@ def run_console(
     db_path: str = "noesis.db",
     namespace: str = "default",
     port: int = 8420,
+    bind_host: str = "127.0.0.1",
+    auth_token: Optional[str] = None,
 ):
-    """Start the governance console server."""
-    global _gateway
+    """Start a loopback-only, bearer-authenticated governance console."""
+    global _console_token, _gateway
     _gateway = RetrievalGateway(db_path=db_path, namespace=namespace)
+    _console_token = auth_token or secrets.token_urlsafe(32)
 
-    server = HTTPServer(("0.0.0.0", port), ConsoleHandler)
+    server = HTTPServer((bind_host, port), ConsoleHandler)
     print(f"\n  Noesis Governance Console")
     print(f"  ────────────────────────")
     print(f"  Database:  {db_path}")
     print(f"  Namespace: {namespace}")
-    print(f"  URL:       http://localhost:{port}")
+    print(f"  URL:       http://{bind_host}:{port}")
+    print(f"  API auth:  bearer token injected into local dashboard")
     print(f"\n  Press Ctrl+C to stop.\n")
 
     try:

@@ -9,5 +9,20 @@ This is the immune system. The piece nobody else has.
 
 from noesis.governor.trust_gate import TrustGate
 from noesis.governor.grief_cascade import GriefCascade
+from noesis.governor.authority import (
+    AuthorRecord,
+    AuthorityResolver,
+    DenyAllAuthorityResolver,
+    StaticAuthorityResolver,
+    WritePermission,
+)
 
-__all__ = ["TrustGate", "GriefCascade"]
+__all__ = [
+    "TrustGate",
+    "GriefCascade",
+    "AuthorRecord",
+    "AuthorityResolver",
+    "DenyAllAuthorityResolver",
+    "StaticAuthorityResolver",
+    "WritePermission",
+]

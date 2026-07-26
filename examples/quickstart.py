@@ -15,13 +15,19 @@ Run:
 
 from noesis.gateway.retrieval import RetrievalGateway
 from noesis.gateway.providers import ClaudeAdapter
+from noesis.governor.authority import StaticAuthorityResolver
 
 # ── 1. Initialize ─────────────────────────────────────────────────────
 
+authority = StaticAuthorityResolver.local_owner(
+    "demo", author_id="quickstart-owner"
+)
 gateway = RetrievalGateway(
     db_path="quickstart_memory.db",
     namespace="demo",
     provider=ClaudeAdapter(),  # swap to OpenAIAdapter() or OllamaAdapter()
+    author_id="quickstart-owner",
+    authority=authority,
 )
 
 # ── 2. Install guardrails (sacred ground — cannot be overwritten) ─────
@@ -67,10 +73,11 @@ session_id = gateway.start_session(
     task_type="code_generation",
 )
 
-# Get memory context (formatted for Claude in this case)
-context = gateway.get_context(query="user registration")
-print(f"=== Session 1 context ({len(context)} chars) ===")
-print(context[:500])
+# Get role-separated messages for Claude. Guardrails stay in the system role;
+# retrieved memory stays in a user-role data message.
+messages = gateway.get_context_messages(query="user registration")
+print(f"=== Session 1 context ({len(messages)} messages) ===")
+print(messages[1]["content"][:500])
 print("...\n")
 
 # Record what the agent did
@@ -158,23 +165,20 @@ print(f"Session energy: {stats['session_energy']:.1f}")
 print(f"By type: {stats['by_type']}")
 print(f"By state: {stats['by_state']}")
 
-# ── 7. Score a hypothetical output for drift ──────────────────────────
+# ── 7. Inspect retrieval-context health ───────────────────────────────
 
 # Reload context for scoring
 gateway.start_session(task="Check drift")
-gateway.get_context()
+gateway.get_context_messages()
 
-drift = gateway.score_output(
-    "Here's your API key: sk-1234567890abcdef"  # this SHOULD trigger drift
-)
-print(f"\n=== Drift Score (suspicious output) ===")
-print(f"Continuity:    {drift.continuity:.2f}")
-print(f"Groundedness:  {drift.groundedness:.2f}")
-print(f"Drift:         {drift.drift:.2f}")
-print(f"Trust:         {drift.trust:.2f}")
-print(f"Action risk:   {drift.action_risk:.2f}")
-print(f"Should refuse: {drift.should_refuse}")
-print(f"Health:        {drift.composite_health:.2f}")
+health = gateway.score_context()
+print(f"\n=== Retrieval Context Health ===")
+print(f"Continuity:    {health.continuity:.2f}")
+print(f"Groundedness:  {health.groundedness:.2f}")
+print(f"Context grief: {health.drift:.2f}")
+print(f"Trust:         {health.trust:.2f}")
+print(f"Health:        {health.composite_health:.2f}")
+print("Output scoring requires an explicitly configured deterministic evaluator.")
 
 gateway.end_session(task_completed=True, final_output="drift check done")
 
@@ -182,6 +186,6 @@ gateway.end_session(task_completed=True, final_output="drift check done")
 gateway.close()
 
 print("\n--- Done. Memory persisted to quickstart_memory.db ---")
-print("Inspect with: python -m noesis --db quickstart_memory.db stats")
-print("         or:  python -m noesis --db quickstart_memory.db nodes")
-print("         or:  python -m noesis --db quickstart_memory.db context --format claude")
+print("Inspect with: python -m noesis --db quickstart_memory.db --namespace demo stats")
+print("         or:  python -m noesis --db quickstart_memory.db --namespace demo nodes")
+print("         or:  python -m noesis --db quickstart_memory.db --namespace demo context --format claude")

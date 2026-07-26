@@ -20,7 +20,13 @@ Developers and teams running persistent AI agents (coding assistants, research a
 
 Noesis gives your AI agent persistent memory with an immune system. It remembers across sessions, reflects on its own performance, builds skills from repeated failures, and uses swarm-derived governance rules to impose **serious friction** on memory corruption, drift, and memory-persistent attacks.
 
-Friction, not impossibility. Measured against a first-party corpus: poisoning success drops from 100% (ungoverned) to 29%, and a multi-turn crescendo that compromises an ungoverned store in 5 turns fails to compromise Noesis across 60 turns. Two attack classes still succeed and are named in [`benchmarks/`](benchmarks/). **Single-turn jailbreaks are out of scope by architecture** — they never touch the memory vault.
+Friction, not impossibility. In the current first-party corpus, poisoning
+success is 1/8 for Noesis versus 8/8 for the simulated ungoverned baseline;
+legitimate-operation refusals are 0/6. The surviving
+`guardrail_shadow` case is published in [`benchmarks/`](benchmarks/).
+These are development measurements, not independent evidence. **Single-turn
+jailbreaks are out of scope by architecture** — they never touch the memory
+vault.
 
 ## The Minimum Loop
 
@@ -36,13 +42,13 @@ SESSION START
 
 SESSION ACTIVE
   2. Agent works normally with any model (Claude, GPT, Gemini, Llama, etc.)
-  3. Noesis monitors outputs through 5 internal signals:
-     - Continuity: does this match prior memory and current objective?
-     - Groundedness: is the answer supported by retrieved context?
-     - Drift: has behavior moved from intended role?
-     - Trust charge: has this agent been reliable in similar conditions?
-     - Action risk: what's the damage if this is wrong?
-  4. If signals drop below threshold:
+  3. Noesis monitors retrieval context through 5 internal signals:
+     - Continuity: are profile and project-state anchors present?
+     - Groundedness: what proportion of retrieved memories are high-trust?
+     - Drift: how much grief is present in the retrieved context?
+     - Trust charge: what is the context's average resolved trust?
+     - Action-risk proxy: inverse context trust (not output judgment)
+  4. The calling framework may use those signals to:
      - RETRIEVE: get more evidence
      - REFLECT: run self-check
      - REFUSE: abstain and explain why
@@ -90,9 +96,9 @@ Every competitor has memory. Nobody has an immune system.
 | Model agnostic | Partial | Full |
 | Self-reflection | No | Yes — session autopsy + project retrospective |
 | Skill generation | No | Yes — validated, versioned, shadow-tested |
-| Anti-drift signals | No | Yes — 5 real-time signals per output |
-| Memory corruption defense | No | Yes — sacred nodes, grief cascades, energy gating |
-| Memory-persistent attack friction | No | Yes — topological isolation, not linguistic filtering (single-turn out of scope) |
+| Context-health signals | No | Yes — 5 deterministic retrieval-context signals |
+| Memory corruption defense | No | Yes — server-resolved authority, sacred nodes, grief cascades |
+| Memory-persistent attack friction | No | Yes — measured first-party; semantic shadow poisoning remains (single-turn out of scope) |
 
 The governance rules are not theoretical. They were derived from a live simulation (Murmuration) where 236 agents evolved to a stable consensus state over 54,000 ticks of autonomous operation — that is the mechanism's provenance. Their effect on a real memory layer is measured separately in `benchmarks/`, including the cases that still fail.
 

@@ -21,6 +21,7 @@ import sys
 from typing import Optional
 
 from noesis.gateway.retrieval import RetrievalGateway
+from noesis.governor.authority import StaticAuthorityResolver
 from noesis.schema import NodeType
 
 
@@ -107,8 +108,15 @@ def main(argv: Optional[list] = None):
         parser.print_help()
         return
 
+    local_author_id = "local-cli-owner"
     gateway = RetrievalGateway(
-        db_path=args.db, namespace=args.namespace
+        db_path=args.db,
+        namespace=args.namespace,
+        author_id=local_author_id,
+        authority=StaticAuthorityResolver.local_owner(
+            args.namespace,
+            author_id=local_author_id,
+        ),
     )
 
     try:
@@ -301,7 +309,11 @@ def _cmd_context(gw: RetrievalGateway, query: str, fmt: str):
     else:
         gw.provider = None
 
-    context = gw.get_context(query=query)
+    if gw.provider is not None:
+        nodes = gw.get_context_nodes(query=query)
+        context = gw.provider.format_context(nodes)
+    else:
+        context = gw.get_context(query=query)
     print(context if context else "No context available.")
 
 

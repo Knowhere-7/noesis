@@ -177,9 +177,9 @@
         <!-- RIGHT COLUMN -->
         <div class="space-y-4">
 
-            <!-- Drift Signals -->
+            <!-- Retrieval Context Health -->
             <div class="bg-slate-950/40 border border-slate-900 p-4 rounded-xl panel-glow">
-                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-2 mb-3">Drift Signals</h3>
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-2 mb-3">Retrieval Context Health</h3>
                 <div class="space-y-2">
                     <div class="flex justify-between items-center text-xs">
                         <span class="text-slate-400">Continuity</span>
@@ -190,7 +190,7 @@
                         <span id="drift-groundedness" class="font-bold text-emerald-400">—</span>
                     </div>
                     <div class="flex justify-between items-center text-xs">
-                        <span class="text-slate-400">Drift</span>
+                        <span class="text-slate-400">Context Grief</span>
                         <span id="drift-drift" class="font-bold text-amber-400">—</span>
                     </div>
                     <div class="flex justify-between items-center text-xs">
@@ -198,7 +198,7 @@
                         <span id="drift-trust" class="font-bold text-teal-400">—</span>
                     </div>
                     <div class="flex justify-between items-center text-xs">
-                        <span class="text-slate-400">Action Risk</span>
+                        <span class="text-slate-400">Risk Proxy</span>
                         <span id="drift-risk" class="font-bold text-red-400">—</span>
                     </div>
                     <div class="border-t border-slate-800 pt-2 mt-2 flex justify-between items-center text-xs">
@@ -285,24 +285,39 @@
 <script>
 // ── Config ──────────────────────────────────────────────────────────
 const API = '';  // same origin
+const AUTH_TOKEN = __NOESIS_CONSOLE_TOKEN__;
 const POLL_INTERVAL = 3000;  // ms
 let pollTimer = null;
 let currentNodes = [];
 
 // ── Helpers ─────────────────────────────────────────────────────────
 async function api(path) {
-    const res = await fetch(API + path);
+    const res = await fetch(API + path, {
+        headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN }
+    });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
 }
 
 async function apiPost(path) {
-    const res = await fetch(API + path, { method: 'POST' });
+    const res = await fetch(API + path, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + AUTH_TOKEN }
+    });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
 }
 
 function $(id) { return document.getElementById(id); }
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
 
 function stateColor(state) {
     const map = { HEALTHY: 'text-emerald-400', GRIEVING: 'text-amber-400', CRISIS: 'text-red-400', PURGED: 'text-slate-600' };
@@ -371,7 +386,7 @@ async function loadStats() {
             const types = Object.entries(s.by_type).sort((a,b) => b[1] - a[1]);
             el.innerHTML = types.map(([t, c]) => `
                 <div class="flex justify-between items-center text-xs">
-                    <span class="${typeColor(t)}">${t}</span>
+                    <span class="${typeColor(t)}">${escapeHtml(t)}</span>
                     <span class="text-slate-400 font-bold">${c}</span>
                 </div>
             `).join('');
@@ -413,9 +428,9 @@ async function loadNodes() {
         }
 
         tbody.innerHTML = nodes.map(n => `
-            <tr class="node-row border-b border-slate-900/50 cursor-pointer transition-colors" onclick="showDetail('${n.key.replace(/'/g, "\\'")}')">
-                <td class="px-3 py-2 font-bold text-slate-200 truncate max-w-[180px]" title="${n.key}">${n.key}</td>
-                <td class="px-3 py-2 ${typeColor(n.type)}">${n.type}</td>
+            <tr class="node-row border-b border-slate-900/50 cursor-pointer transition-colors" data-key="${encodeURIComponent(n.key)}">
+                <td class="px-3 py-2 font-bold text-slate-200 truncate max-w-[180px]" title="${escapeHtml(n.key)}">${escapeHtml(n.key)}</td>
+                <td class="px-3 py-2 ${typeColor(n.type)}">${escapeHtml(n.type)}</td>
                 <td class="px-3 py-2">
                     <div class="flex items-center gap-1.5">
                         <div class="w-16 h-1.5 bg-slate-900 rounded-full overflow-hidden">
@@ -434,11 +449,16 @@ async function loadNodes() {
                 </td>
                 <td class="px-3 py-2 text-purple-400">${n.faith.toFixed(2)}</td>
                 <td class="px-3 py-2">
-                    <span class="text-[10px] px-1.5 py-0.5 rounded border font-bold uppercase ${stateColor(n.state)} ${stateBg(n.state)}">${n.state}</span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded border font-bold uppercase ${stateColor(n.state)} ${stateBg(n.state)}">${escapeHtml(n.state)}</span>
                 </td>
                 <td class="px-3 py-2 text-center">${n.sacred ? '<span class="text-purple-400" title="Sacred — immutable">&#9733;</span>' : ''}</td>
             </tr>
         `).join('');
+        tbody.querySelectorAll('tr.node-row').forEach(row => {
+            row.addEventListener('click', () => {
+                showDetail(decodeURIComponent(row.dataset.key));
+            });
+        });
     } catch(e) {
         console.error('loadNodes:', e);
     }
@@ -513,8 +533,8 @@ async function loadCascadeLog() {
         el.innerHTML = log.map(r => `
             <div class="text-[11px] bg-red-950/20 border border-red-900/20 rounded px-2 py-1.5 flex justify-between items-center">
                 <div>
-                    <span class="text-red-400 font-bold">${r.node_key}</span>
-                    <span class="text-slate-600 ml-1">${r.node_type}</span>
+                    <span class="text-red-400 font-bold">${escapeHtml(r.node_key)}</span>
+                    <span class="text-slate-600 ml-1">${escapeHtml(r.node_type)}</span>
                 </div>
                 <div class="text-slate-600 text-[10px]">
                     T:${(r.trust_at_purge || 0).toFixed(2)} G:${(r.grief_at_purge || 0).toFixed(2)}
@@ -562,7 +582,7 @@ async function triggerDecay() {
 
 async function runRetrospective() {
     try {
-        const r = await api('/api/retrospective?hours=168');
+        const r = await apiPost('/api/retrospective?hours=168');
         $('retro-episodes').textContent = r.episodes_analyzed;
         $('retro-health').textContent = (r.overall_health || 0).toFixed(2);
 
@@ -576,7 +596,7 @@ async function runRetrospective() {
         const recEl = $('retro-recommendations');
         const recs = r.recommendations || [];
         recEl.innerHTML = recs.length
-            ? recs.map(rec => `<div class="text-[10px] text-purple-300/80">&rarr; ${rec}</div>`).join('')
+            ? recs.map(rec => `<div class="text-[10px] text-purple-300/80">&rarr; ${escapeHtml(rec)}</div>`).join('')
             : '<div class="text-[10px] text-slate-600">No recommendations</div>';
 
         $('retro-panel').classList.remove('hidden');

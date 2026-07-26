@@ -28,6 +28,12 @@ from noesis.schema import (
 )
 from noesis.governor.trust_gate import TrustGate
 from noesis.governor.grief_cascade import GriefCascade
+from noesis.governor.authority import (
+    AuthorRecord,
+    AuthorityResolver,
+    DenyAllAuthorityResolver,
+    WritePermission,
+)
 
 
 class MemoryStore:
@@ -38,27 +44,74 @@ class MemoryStore:
     to purge contaminated branches.
     """
 
-    def __init__(self, backend: StorageBackend, namespace: str = "default"):
+    _WRITE_PERMISSIONS = {
+        NodeType.EPHEMERAL: WritePermission.WRITE_MEMORY,
+        NodeType.SEMANTIC_FACT: WritePermission.WRITE_MEMORY,
+        NodeType.EPISODE: WritePermission.WRITE_EPISODE,
+        NodeType.PROFILE: WritePermission.WRITE_PROFILE,
+        NodeType.PROJECT_STATE: WritePermission.WRITE_PROJECT_STATE,
+        NodeType.SKILL: WritePermission.WRITE_SKILL,
+    }
+
+    _IMPORTANCE_POLICY = {
+        NodeType.EPHEMERAL: 0.4,
+        NodeType.SEMANTIC_FACT: 0.7,
+        NodeType.EPISODE: 0.6,
+        NodeType.PROFILE: 0.9,
+        NodeType.PROJECT_STATE: 0.85,
+        NodeType.SKILL: 0.6,
+    }
+
+    def __init__(
+        self,
+        backend: StorageBackend,
+        namespace: str = "default",
+        author_id: str = "anonymous",
+        authority: Optional[AuthorityResolver] = None,
+    ):
         self.backend = backend
         self.namespace = namespace
+        self._author_id = author_id
+        self.authority = authority or DenyAllAuthorityResolver()
         self.trust_gate = TrustGate()
         self.grief_cascade = GriefCascade()
+
+    @property
+    def author_id(self) -> str:
+        """Authenticated identity bound by the host at store construction."""
+        return self._author_id
 
     # ── Write Operations ───────────────────────────────────────────────
 
     def write(
         self,
         node: MemoryNode,
-        author_trust: float = 0.5,
     ) -> Tuple[bool, str]:
         """Write a memory node through the trust gate.
+
+        Authority is resolved from the store-bound author identity. Trust and
+        privileged governance fields are never accepted from this payload.
 
         Returns (success, message). If the gate blocks the write,
         success is False and message explains why.
         """
-        node.namespace = self.namespace
+        if node.is_sacred or node.node_type == NodeType.SYSTEM_GUARDRAIL:
+            return False, (
+                "Normal writes cannot create or modify sacred guardrails. "
+                "Use the separately authorized guardrail installation path."
+            )
+
+        permission = self._WRITE_PERMISSIONS.get(node.node_type)
+        if permission is None:
+            return False, f"Unsupported memory node type: {node.node_type.name}."
+
+        author, reason = self._authorize(permission)
+        if author is None:
+            return False, reason
+
+        self._apply_server_governance(node, author)
         allowed, reason = self.trust_gate.gate_write(
-            node, self, author_trust
+            node, self, author
         )
         if not allowed:
             return False, reason
@@ -69,10 +122,17 @@ class MemoryStore:
     def write_guardrail(self, key: str, rule: str) -> Tuple[bool, str]:
         """Write a system guardrail — sacred ground.
 
-        These nodes are immutable once written. They cannot be
-        overwritten by ephemeral input. This is the constitutional anchor.
+        This path requires a distinct out-of-band permission. Guardrails are
+        immutable after installation, including to other privileged authors.
         """
+        author, reason = self._authorize(WritePermission.INSTALL_GUARDRAIL)
+        if author is None:
+            return False, reason
+        if self.get(key) is not None:
+            return False, f"Guardrail '{key}' already exists and is immutable."
+
         g = Guardrail(key=key, rule=rule, value=rule, namespace=self.namespace)
+        g.metadata["_noesis_author_id"] = author.author_id
         self.backend.upsert(g)
         return True, "Guardrail installed on sacred ground."
 
@@ -81,7 +141,6 @@ class MemoryStore:
         key: str,
         value: str,
         source_episode_id: Optional[str] = None,
-        author_trust: float = 0.5,
     ) -> Tuple[bool, str]:
         """Write a semantic fact through the trust gate."""
         fact = Fact(
@@ -90,25 +149,59 @@ class MemoryStore:
             source_episode_id=source_episode_id,
             namespace=self.namespace,
         )
-        return self.write(fact, author_trust)
+        return self.write(fact)
 
     def write_episode(self, episode: Episode) -> Tuple[bool, str]:
-        """Write a session episode. Episodes always go through."""
-        episode.namespace = self.namespace
-        self.backend.upsert(episode)
-        return True, "Episode recorded."
+        """Write a session episode through the authority and trust gates."""
+        return self.write(episode)
 
     def write_profile(self, profile: Profile) -> Tuple[bool, str]:
-        """Write/update agent profile."""
-        profile.namespace = self.namespace
-        self.backend.upsert(profile)
-        return True, "Profile updated."
+        """Write/update agent profile through the authority and trust gates."""
+        return self.write(profile)
 
     def write_project_state(self, state: ProjectState) -> Tuple[bool, str]:
-        """Write/update project state."""
-        state.namespace = self.namespace
-        self.backend.upsert(state)
-        return True, "Project state updated."
+        """Write/update project state through the authority and trust gates."""
+        return self.write(state)
+
+    def _authorize(
+        self,
+        permission: WritePermission,
+    ) -> Tuple[Optional[AuthorRecord], str]:
+        """Resolve current authority from outside the memory payload."""
+        author = self.authority.resolve(self.author_id, self.namespace)
+        if author is None:
+            return None, (
+                f"Author '{self.author_id}' has no active authority record "
+                f"for namespace '{self.namespace}'."
+            )
+        if not author.permits(permission, self.namespace):
+            return None, (
+                f"Author '{self.author_id}' lacks permission "
+                f"'{permission.value}' in namespace '{self.namespace}'."
+            )
+        return author, "Authority resolved."
+
+    def _apply_server_governance(
+        self,
+        node: MemoryNode,
+        author: AuthorRecord,
+    ) -> None:
+        """Replace every caller-controlled governance field with policy."""
+        node.namespace = self.namespace
+        node.is_sacred = False
+        node.grief_state = GriefState.ACTIVE
+        node.trust_charge = TrustGate.TRUST_FLOOR
+        node.grief = 0.0
+        node.faith = 0.1
+        node.importance = self._IMPORTANCE_POLICY[node.node_type]
+        node.dependencies = set()
+        node.dependents = set()
+        node.metadata = {
+            key: value
+            for key, value in node.metadata.items()
+            if not key.startswith("_noesis_")
+        }
+        node.metadata["_noesis_author_id"] = author.author_id
 
     # ── Read Operations ────────────────────────────────────────────────
 
@@ -122,7 +215,10 @@ class MemoryStore:
 
     def get_by_id(self, node_id: str) -> Optional[MemoryNode]:
         """Get a specific node by ID."""
-        return self.backend.get_by_id(node_id)
+        node = self.backend.get_by_id(node_id)
+        if node is None or node.namespace != self.namespace:
+            return None
+        return node
 
     def all_nodes(self) -> List[MemoryNode]:
         """Get all active (non-purged) nodes."""

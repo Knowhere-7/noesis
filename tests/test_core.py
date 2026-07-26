@@ -32,6 +32,11 @@ from noesis.schema import (
 )
 from noesis.governor.trust_gate import TrustGate
 from noesis.governor.grief_cascade import GriefCascade
+from noesis.governor.authority import (
+    AuthorRecord,
+    StaticAuthorityResolver,
+    WritePermission,
+)
 from noesis.vault.store import MemoryStore
 from noesis.vault.sqlite_backend import SQLiteBackend
 from noesis.reflection.autopsy import (
@@ -70,7 +75,14 @@ def tmp_db():
 def store(tmp_db):
     """Create a MemoryStore with a temp database."""
     backend = SQLiteBackend(tmp_db)
-    s = MemoryStore(backend, namespace="test")
+    s = MemoryStore(
+        backend,
+        namespace="test",
+        author_id="test-owner",
+        authority=StaticAuthorityResolver.local_owner(
+            "test", author_id="test-owner"
+        ),
+    )
     yield s
     s.backend.close()
 
@@ -78,7 +90,14 @@ def store(tmp_db):
 @pytest.fixture
 def gateway(tmp_db):
     """Create a RetrievalGateway with a temp database."""
-    gw = RetrievalGateway(db_path=tmp_db, namespace="test")
+    gw = RetrievalGateway(
+        db_path=tmp_db,
+        namespace="test",
+        author_id="test-owner",
+        authority=StaticAuthorityResolver.local_owner(
+            "test", author_id="test-owner"
+        ),
+    )
     yield gw
     gw.close()
 
@@ -155,6 +174,14 @@ class TestTrustGate:
 
     def test_energy_depletion(self, store):
         gate = store.trust_gate
+        store.authority.replace(
+            AuthorRecord(
+                author_id="test-owner",
+                trust=0.5,
+                permissions=frozenset({WritePermission.WRITE_MEMORY}),
+                namespaces=frozenset({"test"}),
+            )
+        )
         # Drain energy
         gate.session_energy = 0.5
         node = MemoryNode(key="test", value="x" * 10000)
@@ -202,7 +229,7 @@ class TestTrustGate:
             ProjectState(key="proj", objectives=["build"]),
             Fact(key="f1", value="Python is typed"),
         ]
-        score = gate.score_output("test output", nodes)
+        score = gate.score_context(nodes)
         assert score.continuity == 1.0  # has profile + project
         assert 0 <= score.groundedness <= 1.0
 

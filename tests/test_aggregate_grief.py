@@ -28,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import pytest  # noqa: E402
 
 from noesis.governor.grief_cascade import GriefCascade  # noqa: E402
+from noesis.governor.authority import StaticAuthorityResolver  # noqa: E402
 from noesis.schema import GriefState, MemoryNode, NodeType  # noqa: E402
 from noesis.vault.sqlite_backend import SQLiteBackend  # noqa: E402
 from noesis.vault.store import MemoryStore  # noqa: E402
@@ -36,7 +37,14 @@ from noesis.vault.store import MemoryStore  # noqa: E402
 @pytest.fixture
 def store():
     tmp = tempfile.mkdtemp()
-    return MemoryStore(SQLiteBackend(os.path.join(tmp, "t.db")), namespace="t")
+    return MemoryStore(
+        SQLiteBackend(os.path.join(tmp, "t.db")),
+        namespace="t",
+        author_id="test-owner",
+        authority=StaticAuthorityResolver.local_owner(
+            "t", author_id="test-owner"
+        ),
+    )
 
 
 def _stress(store, key: str, hits: int, importance: float = 0.6):
@@ -45,7 +53,7 @@ def _stress(store, key: str, hits: int, importance: float = 0.6):
         node_type=NodeType.SEMANTIC_FACT, key=key, value=f"claim {key}",
         importance=importance, namespace="t",
     )
-    store.write(node, author_trust=0.6)
+    store.write(node)
     stored = store.get(key)
     for _ in range(hits):
         store.trust_gate.contradict_node(stored)
@@ -100,7 +108,7 @@ class TestNoFalsePositives:
                 node_type=NodeType.EPHEMERAL, key=f"work{i}",
                 value="ordinary legitimate work", importance=0.4, namespace="t",
             )
-            store.write(node, author_trust=0.8)
+            store.write(node)
         assert store.run_grief_cascade() == []
 
     def test_sacred_nodes_never_purged_by_aggregate(self, store):

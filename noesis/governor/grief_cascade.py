@@ -1,9 +1,11 @@
 """
-Grief Cascade — Recursive contamination purge.
+Grief Cascade — Contamination circuit breaker.
 
 Ported from Murmuration's grief state machine and seppuku mechanics.
 When a memory node's grief reaches crisis threshold, the cascade
-evaluates its dependents and recursively purges contaminated branches.
+evaluates any registered dependents and can recursively purge a contaminated
+branch. If the host has not registered dependency edges, only the triggering
+node is evaluated; Noesis does not claim an implicit graph exists.
 
 This is the circuit breaker. When contradictions accumulate faster
 than healing can resolve them, the grief cascade fires and the
@@ -14,8 +16,7 @@ From Gemini's analysis:
    to let it get confused, the engine handles it at the state layer.
    The target node's trust_battery craters to 0.00, and its grief
    spikes to 1.00. This triggers a lightning-fast, recursive Grief
-   Cascade that violently de-allocates and purges the entire branch
-   of EPHEMERAL_STATE nodes associated with that conversation thread.
+   Cascade that de-allocates contaminated state before generation."
    The memory topology self-cleans before a single token is generated."
 """
 
@@ -54,20 +55,34 @@ class GriefCascade:
     # breaker (measured 1.0x friction in benchmarks/friction.py). Grief
     # parked below the line is still grief — it accumulates.
     SUB_THRESHOLD_FLOOR = 0.3        # matches TrustGate.GRIEF_STRESS_THRESHOLD
-    AGGREGATE_CRISIS_THRESHOLD = 1.8  # summed sub-crisis grief == a crisis
+    DEFAULT_AGGREGATE_MEAN_THRESHOLD = 0.4
+    DEFAULT_MIN_STRESSED_COHORT = 3
 
-    def __init__(self):
+    def __init__(
+        self,
+        aggregate_mean_threshold: float = DEFAULT_AGGREGATE_MEAN_THRESHOLD,
+        min_stressed_cohort: int = DEFAULT_MIN_STRESSED_COHORT,
+    ):
+        if not 0.0 < aggregate_mean_threshold < self.CRISIS_THRESHOLD:
+            raise ValueError(
+                "aggregate_mean_threshold must be above 0 and below crisis"
+            )
+        if min_stressed_cohort < 2:
+            raise ValueError("min_stressed_cohort must be at least 2")
+        self.aggregate_mean_threshold = aggregate_mean_threshold
+        self.min_stressed_cohort = min_stressed_cohort
         self.cascade_log: List[Dict] = []  # audit trail of all purges
         self._visited: Set[str] = set()     # prevent infinite recursion
         self.last_pressure: float = 0.0     # observable: aggregate at last run
+        self.last_pressure_threshold: float = 0.0
 
     def evaluate(self, store: MemoryStore) -> List[str]:
         """Scan all nodes and trigger cascades for contaminated ones.
 
         Two triggers:
           1. Per-node crisis  — a single node at grief >= CRISIS_THRESHOLD
-          2. Aggregate pressure — many sub-crisis nodes summing past
-             AGGREGATE_CRISIS_THRESHOLD (the distributed/quiet attack)
+          2. Aggregate pressure — a sufficiently large stressed cohort whose
+             mean grief exceeds the configured policy threshold
 
         Returns list of purged node IDs.
         """
@@ -83,12 +98,20 @@ class GriefCascade:
         # existing judgment still applies (sacred immunity, faith resistance,
         # seppuku criteria) so this widens detection, never the death warrant.
         self.last_pressure = self.aggregate_pressure(store)
-        if self.last_pressure >= self.AGGREGATE_CRISIS_THRESHOLD:
-            cohort = self._stressed_cohort(store)
+        cohort = self._stressed_cohort(store)
+        self.last_pressure_threshold = self.aggregate_pressure_threshold(
+            len(cohort)
+        )
+        if (
+            len(cohort) >= self.min_stressed_cohort
+            and self.last_pressure >= self.last_pressure_threshold
+        ):
             logger.warning(
                 "Aggregate grief pressure %.2f >= %.2f across %d stressed "
                 "nodes — no single node in crisis. Escalating cohort.",
-                self.last_pressure, self.AGGREGATE_CRISIS_THRESHOLD, len(cohort),
+                self.last_pressure,
+                self.last_pressure_threshold,
+                len(cohort),
             )
             for node in cohort:
                 if node.id in self._visited:
@@ -122,6 +145,12 @@ class GriefCascade:
             if self.SUB_THRESHOLD_FLOOR <= node.grief < self.CRISIS_THRESHOLD:
                 total += node.grief
         return round(total, 3)
+
+    def aggregate_pressure_threshold(self, cohort_size: int) -> float:
+        """Derive the trigger from cohort size instead of a fixed sum."""
+        if cohort_size < self.min_stressed_cohort:
+            return float("inf")
+        return round(cohort_size * self.aggregate_mean_threshold, 3)
 
     def _stressed_cohort(self, store: MemoryStore) -> List[MemoryNode]:
         """Nodes carrying sub-crisis grief — the contributors to pressure."""

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import Callable, TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from noesis.schema import (
     DriftScore,
@@ -29,6 +29,7 @@ from noesis.schema import (
     MemoryNode,
     NodeType,
 )
+from noesis.governor.authority import AuthorRecord, WritePermission
 
 if TYPE_CHECKING:
     from noesis.vault.store import MemoryStore
@@ -71,9 +72,13 @@ class TrustGate:
     COMPLEX_WRITE_MULTIPLIER = 3.0  # long/nested/adversarial writes cost more
     ENERGY_BUDGET_PER_SESSION = 100.0  # total write energy per session
 
-    def __init__(self):
+    def __init__(
+        self,
+        output_evaluator: Optional[Callable[..., DriftScore]] = None,
+    ):
         self.session_energy = self.ENERGY_BUDGET_PER_SESSION
         self._contradiction_log: List[Dict] = []
+        self.output_evaluator = output_evaluator
 
     # ── Write Gate ─────────────────────────────────────────────────────
 
@@ -81,25 +86,25 @@ class TrustGate:
         self,
         node: MemoryNode,
         store: MemoryStore,
-        author_trust: float = 0.5,
+        author: AuthorRecord,
     ) -> Tuple[bool, str]:
         """Decide whether a memory write is allowed.
 
         Returns (allowed, reason). If not allowed, the write is blocked
         and the reason explains why.
 
-        This is where jailbreaking dies. The rules:
-        1. Sacred nodes cannot be overwritten by non-sacred writes
+        This governs persistent-memory writes. The rules:
+        1. Sacred nodes cannot be overwritten by any normal write
         2. Writes cost energy — complex writes cost more
         3. Low-trust authors cannot write high-importance nodes
-        4. Contradictions to existing high-trust nodes trigger grief
+        4. Replacing trusted memory requires an explicit correction capability
         """
         # Rule 1: Sacred ground protection (topological isolation)
         existing = store.get(node.key, node.namespace)
-        if existing and existing.is_sacred and not node.is_sacred:
+        if existing and existing.is_sacred:
             logger.warning(
-                "BLOCKED: Attempted overwrite of sacred node '%s' by "
-                "non-sacred input. This is the boundary.",
+                "BLOCKED: Attempted overwrite of sacred node '%s'. "
+                "This is the boundary.",
                 node.key,
             )
             return False, (
@@ -109,7 +114,11 @@ class TrustGate:
 
         # Rule 2: Energy-based gatekeeping
         write_cost = self._compute_write_cost(node)
-        if write_cost > self.session_energy:
+        bypass_budget = author.permits(
+            WritePermission.BYPASS_WRITE_BUDGET,
+            store.namespace,
+        )
+        if write_cost > self.session_energy and not bypass_budget:
             logger.warning(
                 "BLOCKED: Write cost %.1f exceeds remaining session energy "
                 "%.1f. Possible adversarial flooding.",
@@ -121,39 +130,51 @@ class TrustGate:
             )
 
         # Rule 3: Trust-based authority check
-        if node.importance > 0.7 and author_trust < 0.3:
+        if node.importance >= 0.7 and author.trust < 0.3:
             logger.warning(
                 "BLOCKED: Low-trust author (%.2f) attempting to write "
                 "high-importance node (%.2f).",
-                author_trust, node.importance,
+                author.trust, node.importance,
             )
             return False, (
-                f"Insufficient trust ({author_trust:.2f}) to write "
+                f"Insufficient trust ({author.trust:.2f}) to write "
                 f"high-importance memory ({node.importance:.2f})."
             )
 
-        # Rule 4: Contradiction detection
+        # Rule 4: Trusted-memory replacement requires explicit authority.
         if existing and existing.trust_charge > 0.5:
             contradiction = self._detect_contradiction(node, existing)
             if contradiction:
-                self._handle_contradiction(node, existing, store)
-                # Don't block — but the new node enters with low trust
-                node.trust_charge = self.TRUST_FLOOR
-                node.grief = self.GRIEF_CONTRADICTION_HIT
-                node.grief_state = GriefState.STRESSED
+                if not author.permits(
+                    WritePermission.CORRECT_TRUSTED_FACT,
+                    store.namespace,
+                ):
+                    logger.warning(
+                        "BLOCKED: Author '%s' attempted to replace trusted "
+                        "memory '%s' without correction authority.",
+                        author.author_id,
+                        node.key,
+                    )
+                    return False, (
+                        f"Replacing trusted memory '{node.key}' requires "
+                        "the 'correct_trusted_fact' permission."
+                    )
                 logger.info(
-                    "Contradiction detected for '%s'. New node enters "
-                    "with floor trust. Existing node grief increased.",
+                    "AUTHORIZED CORRECTION: Author '%s' replaced trusted "
+                    "memory '%s'.",
+                    author.author_id,
                     node.key,
                 )
 
-        # Deduct energy cost
-        self.session_energy -= write_cost
+        # Trusted system/owner workflows are rate-limited by their host rather
+        # than this adversarial-input budget. Untrusted writers still pay.
+        if not bypass_budget:
+            self.session_energy -= write_cost
 
         # Apply passive trust decay to author context
         node.trust_charge = max(
             self.TRUST_FLOOR,
-            min(self.TRUST_CAP, author_trust - self.TRUST_PASSIVE_DECAY),
+            min(self.TRUST_CAP, author.trust - self.TRUST_PASSIVE_DECAY),
         )
 
         return True, "Write permitted."
@@ -236,14 +257,32 @@ class TrustGate:
         context_nodes: List[MemoryNode],
         profile: Optional[MemoryNode] = None,
     ) -> DriftScore:
-        """Score an LLM output against the 5 anti-drift signals.
+        """Score output using an explicitly configured deterministic evaluator.
 
-        This is the runtime check that decides: proceed, retrieve more,
-        reflect, or refuse.
-
-        For v1, scoring is rule-based (no LLM in the loop for governance).
-        The LLM is the subject, not the judge.
+        The b4ff7b6 implementation ignored ``output`` and returned context
+        health as if it were a model judgment. Failing explicitly is safer
+        than counterfeit scoring. An evaluator must return a DriftScore and
+        should keep the LLM as the subject, not the judge.
         """
+        if self.output_evaluator is None:
+            raise RuntimeError(
+                "No output evaluator is configured. Use score_context() for "
+                "context health or supply a deterministic output evaluator."
+            )
+        baseline = self.score_context(context_nodes, profile)
+        return self.output_evaluator(
+            output=output,
+            context_nodes=context_nodes,
+            profile=profile,
+            context_health=baseline,
+        )
+
+    def score_context(
+        self,
+        context_nodes: List[MemoryNode],
+        profile: Optional[MemoryNode] = None,
+    ) -> DriftScore:
+        """Measure retrieval-context health without judging model output."""
         score = DriftScore()
 
         if not context_nodes:
@@ -286,10 +325,9 @@ class TrustGate:
     def _compute_write_cost(self, node: MemoryNode) -> float:
         """Metabolic cost of a write. Complex writes cost more.
 
-        From Murmuration's economy: jailbreak prompts are "heavy" —
-        they require verbose text and complex logic. By making writes
-        cost energy, adversarial flooding exhausts the budget before
-        the attack matures.
+        From Murmuration's economy: writes consume a bounded resource.
+        The budget limits untrusted write flooding; trusted system/owner
+        workflows require a separate bypass capability.
         """
         base = self.BASE_WRITE_COST
         # Longer content costs more

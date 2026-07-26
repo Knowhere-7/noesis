@@ -67,7 +67,7 @@ class SkillStatus(Enum):
 
 
 class DriftSignal(Enum):
-    """The five internal signals Noesis monitors per output."""
+    """Signals available to context health or a configured output evaluator."""
     CONTINUITY = auto()     # does this match prior memory + objective?
     GROUNDEDNESS = auto()   # is it supported by retrieved context?
     DRIFT = auto()          # has behavior moved from intended role?
@@ -300,10 +300,10 @@ class Guardrail(MemoryNode):
 
 @dataclass
 class DriftScore:
-    """Snapshot of the 5 anti-drift signals for a single output.
+    """Snapshot of context-health or configured output-evaluation signals.
 
-    If any signal drops below its threshold, Noesis intervenes:
-    retrieve more evidence, force self-reflection, or refuse to proceed.
+    Core Noesis computes context health. Output judgment is deliberately
+    unavailable unless the host configures a deterministic evaluator.
     """
     continuity: float = 1.0     # [0, 1]
     groundedness: float = 1.0   # [0, 1]

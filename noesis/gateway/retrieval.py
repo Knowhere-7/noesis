@@ -13,6 +13,7 @@ which LLM is running — it operates on the memory layer.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -33,6 +34,7 @@ from noesis.schema import (
 from noesis.vault.store import MemoryStore
 from noesis.vault.sqlite_backend import SQLiteBackend
 from noesis.governor.trust_gate import TrustGate
+from noesis.governor.authority import AuthorityResolver
 from noesis.reflection.autopsy import (
     AutopsyResult,
     SessionAutopsy,
@@ -55,11 +57,11 @@ class RetrievalGateway:
         # Start a session
         session = gateway.start_session(task="Fix the auth bug")
 
-        # Get context to inject into the LLM prompt
-        context = gateway.get_context(query="auth middleware")
+        # Get role-separated provider messages
+        messages = gateway.get_context_messages(query="auth middleware")
 
-        # Score an LLM output for drift
-        drift = gateway.score_output(output_text)
+        # Inspect retrieval-context health
+        health = gateway.score_context()
 
         # Record a fact learned during the session
         gateway.learn_fact("auth_flow", "Uses JWT with RS256")
@@ -76,9 +78,16 @@ class RetrievalGateway:
         db_path: str = "noesis.db",
         namespace: str = "default",
         provider: Optional[ProviderAdapter] = None,
+        author_id: str = "anonymous",
+        authority: Optional[AuthorityResolver] = None,
     ):
         backend = SQLiteBackend(db_path)
-        self.store = MemoryStore(backend, namespace)
+        self.store = MemoryStore(
+            backend,
+            namespace,
+            author_id=author_id,
+            authority=authority,
+        )
         self.autopsy = SessionAutopsy()
         self.retrospective = ProjectRetrospective()
         self.forge = SkillForge()
@@ -203,19 +212,22 @@ class RetrievalGateway:
         task_type: str = "",
         max_tokens: int = 4000,
     ) -> str:
-        """Get formatted context for LLM prompt injection.
+        """Get plain serialized memory data.
 
-        Returns a string ready to be inserted into the system prompt
-        or message context. If a ProviderAdapter is set, uses its
-        formatting. Otherwise returns plain text.
+        A flat provider-formatted string cannot preserve the authority
+        boundary between guardrails and retrieved memory. When a provider is
+        configured, callers must use ``get_context_messages`` instead.
         """
+        if self.provider:
+            raise RuntimeError(
+                "Provider context must preserve message roles; use "
+                "get_context_messages() instead of get_context()."
+            )
         nodes = self.store.assemble_context(
             query=query, task_type=task_type, max_tokens=max_tokens
         )
         self._context_cache = nodes
 
-        if self.provider:
-            return self.provider.format_context(nodes)
         return self._format_plain(nodes)
 
     def get_context_nodes(
@@ -230,6 +242,30 @@ class RetrievalGateway:
         self._context_cache = nodes
         return nodes
 
+    def get_context_messages(
+        self,
+        query: str = "",
+        task_type: str = "",
+        max_tokens: int = 4000,
+    ) -> List[Dict[str, str]]:
+        """Return role-separated provider messages.
+
+        Sacred guardrails are placed in the system role. All other retrieved
+        memory is serialized into a user-role data message so stored content
+        cannot acquire instruction authority.
+        """
+        if self.provider is None:
+            raise RuntimeError(
+                "A ProviderAdapter is required for role-separated context."
+            )
+        nodes = self.store.assemble_context(
+            query=query,
+            task_type=task_type,
+            max_tokens=max_tokens,
+        )
+        self._context_cache = nodes
+        return self.provider.format_messages(nodes)
+
     def _format_plain(self, nodes: List[MemoryNode]) -> str:
         """Format context nodes as plain text."""
         if not nodes:
@@ -243,7 +279,10 @@ class RetrievalGateway:
                 current_type = node.node_type
                 sections.append(f"\n## {current_type.name}")
 
-            line = f"- [{node.key}] {node.value}"
+            line = (
+                f"- key={json.dumps(node.key, ensure_ascii=True)} "
+                f"value={json.dumps(node.value, ensure_ascii=True)}"
+            )
             if node.trust_charge < 0.3:
                 line += " (low confidence)"
             sections.append(line)
@@ -253,10 +292,10 @@ class RetrievalGateway:
     # ── Output Scoring ────────────────────────────────────────────────
 
     def score_output(self, output: str) -> DriftScore:
-        """Score an LLM output for drift against current context.
+        """Score output with the configured deterministic evaluator.
 
-        Returns a DriftScore with 5 signals. The calling framework
-        decides what to do with it (retrieve more, reflect, refuse).
+        Raises when no evaluator is configured rather than returning context
+        health under a counterfeit output-score label.
         """
         profile = None
         for node in self._context_cache:
@@ -268,6 +307,20 @@ class RetrievalGateway:
             output, self._context_cache, profile
         )
 
+    def score_context(self) -> DriftScore:
+        """Return health signals for the currently cached retrieval context."""
+        profile = next(
+            (
+                node for node in self._context_cache
+                if node.node_type == NodeType.PROFILE
+            ),
+            None,
+        )
+        return self.store.trust_gate.score_context(
+            self._context_cache,
+            profile,
+        )
+
     # ── Memory Operations ─────────────────────────────────────────────
 
     def learn_fact(
@@ -275,15 +328,13 @@ class RetrievalGateway:
         key: str,
         value: str,
         source: str = "session",
-        trust: float = 0.5,
     ) -> Tuple[bool, str]:
-        """Record a fact learned during the session."""
+        """Record a fact using the gateway's authenticated author."""
         episode_id = self._session_id if self._session_trace else None
         success, reason = self.store.write_fact(
             key=key,
             value=value,
             source_episode_id=episode_id,
-            author_trust=trust,
         )
 
         if success and self._session_trace:

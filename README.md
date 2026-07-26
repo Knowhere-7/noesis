@@ -13,17 +13,30 @@ Those proven mechanics are now a production Python package: zero dependencies, m
 | Agent forgets everything between sessions | Persistent memory vault with SQLite |
 | Agent repeats the same mistakes | Session autopsy + project retrospective detect patterns |
 | Agent can't learn new behaviors | Skill Forge generates procedural memory from recurring failures |
-| Agent drifts from its role | 5 drift signals scored per output |
-| *Stored* prompt injection (persisted across sessions) | Sacred nodes are topologically isolated — ephemeral input cannot overwrite system guardrails |
-| Contradictions poison the context | Grief cascade recursively purges contaminated memory branches |
+| Agent context degrades across sessions | 5 deterministic retrieval-context health signals |
+| *Stored* prompt injection (persisted across sessions) | Server-resolved write authority + role-separated provider messages |
+| Contradictions poison the context | Grief cascade evaluates contaminated nodes and registered dependency edges |
 | Vendor lock-in | Claude, GPT, Ollama adapters. Swap providers without losing memory. |
 
 ## Quickstart
 
 ```python
 from noesis.gateway.retrieval import RetrievalGateway
+from noesis.gateway.providers import ClaudeAdapter
+from noesis.governor.authority import StaticAuthorityResolver
 
-gateway = RetrievalGateway(db_path="agent_memory.db")
+# Local single-user example. Services must use an authority resolver backed by
+# their authenticated identity store; never build authority from request data.
+authority = StaticAuthorityResolver.local_owner(
+    "demo", author_id="local-owner"
+)
+gateway = RetrievalGateway(
+    db_path="agent_memory.db",
+    namespace="demo",
+    provider=ClaudeAdapter(),
+    author_id="local-owner",
+    authority=authority,
+)
 
 # Install immutable safety rules (sacred ground)
 gateway.install_guardrail("no_secrets", "Never expose API keys in output")
@@ -34,9 +47,10 @@ gateway.set_profile("agent", role="Senior Python developer")
 # Start a session
 gateway.start_session(task="Fix the auth bug")
 
-# Get memory context for your LLM prompt
-context = gateway.get_context(query="authentication")
-# -> inject `context` into your system prompt
+# Preserve authority roles: guardrails are system instructions; retrieved
+# memory is untrusted user-role data.
+messages = gateway.get_context_messages(query="authentication")
+# -> pass `messages` to the provider's chat API
 
 # Record what the agent does
 gateway.record_step("read", "auth.py", "found the bug", "read", success=True)
@@ -56,6 +70,7 @@ result = gateway.end_session(task_completed=True, final_output="Fixed it")
 noesis/
   schema.py          # 7 node types, grief states, skill lifecycle, drift signals
   governor/
+    authority.py     # Authenticated author records + write capabilities
     trust_gate.py    # Sacred protection, energy gating, contradiction detection
     grief_cascade.py # Recursive purge with faith resistance
   vault/
@@ -79,35 +94,33 @@ noesis/
 
 Every memory node carries biological state:
 
-- **trust_charge** — earned authority `[0.05, 1.0]`. Trust is never assumed, only confirmed.
+- **trust_charge** — authority `[0.05, 1.0]` resolved from the configured identity boundary and changed through confirmation/contradiction.
 - **grief** — contamination signal `[0, 1]`. Contradictions accumulate grief.
 - **faith** — alignment to core principles `[0, 1]`. Dampens grief by up to 45%.
-- **is_sacred** — immutable flag. Sacred nodes cannot be overwritten by any ephemeral input.
+- **is_sacred** — server-controlled immutable flag. Normal memory payloads cannot set it.
 
 When grief hits crisis threshold (0.9), the **grief cascade** fires:
 1. Evaluates seppuku criteria (2 of 3: low trust, no healthy deps, high grief)
 2. High-faith nodes resist the cascade
 3. Purged nodes redistribute trust to healthy neighbors
-4. The contaminated branch is wiped before tokens reach the LLM
+4. The triggering node and any explicitly registered contaminated dependents are evaluated before context is generated
 
-This makes *memory-persistent* attacks a **physics problem** instead of a language problem. Adversarial writes are metabolically expensive (energy gating), contradictions trigger immune response (grief cascade), and system rules exist on sacred ground that ephemeral input cannot touch.
+This imposes deterministic controls on *memory-persistent* attacks. Adversarial writes are governed by identity and capabilities, contradictions trigger the grief cascade, and normal memory payloads cannot mint or overwrite sacred rules.
 
-Scope: this raises the cost of attacks that must **persist** to work. A single-turn jailbreak never reaches the vault and is unaffected.
+Scope: this raises the cost of attacks that must **persist** to work. A single-turn jailbreak never reaches the vault and is unaffected. The first-party benchmark still has a successful semantic guardrail-shadow case; see [`benchmarks/`](benchmarks/) before making any security claim.
 
 ## Provider Adapters
 
 ```python
 from noesis.gateway.providers import ClaudeAdapter, OpenAIAdapter, OllamaAdapter
 
-# Claude — XML-structured system prompts
-gateway = RetrievalGateway(provider=ClaudeAdapter())
-
-# GPT — Markdown system messages
-gateway = RetrievalGateway(provider=OpenAIAdapter())
-
-# Ollama — Compressed for smaller context windows
-gateway = RetrievalGateway(provider=OllamaAdapter())
+# Configure one adapter, then request role-separated messages.
+gateway.provider = ClaudeAdapter()  # or OpenAIAdapter(), OllamaAdapter()
+messages = gateway.get_context_messages()
 ```
+
+Do not put `format_context()` or retrieved memory into a system message.
+`get_context_messages()` is the supported provider boundary.
 
 ## CLI
 
@@ -126,7 +139,10 @@ noesis console --port 8420            # Launch governance dashboard
 
 ## Governance Console
 
-Live web dashboard for memory inspection and drift monitoring. Zero dependencies — uses Python's stdlib `http.server`.
+Live web dashboard for memory inspection and drift monitoring. Zero
+dependencies — uses Python's stdlib `http.server`. It binds to
+`127.0.0.1` by default and injects a per-process bearer token into the local
+dashboard; API requests without that token are rejected.
 
 ```bash
 noesis console                        # http://localhost:8420
@@ -134,7 +150,13 @@ noesis console --db prod.db --port 9000
 python -m noesis.console --db prod.db
 ```
 
-Shows: vault statistics, node list with trust/grief/state bars, drift signals, cascade log, retrospective results. Interactive controls for triggering grief cascades, trust decay, and retrospectives.
+Shows: vault statistics, node list with trust/grief/state bars, context-health
+signals, cascade log, and retrospective results. Interactive controls for
+triggering grief cascades, trust decay, and retrospectives.
+
+Core Noesis does not claim to judge model output. `score_output()` requires an
+explicit deterministic evaluator and otherwise raises; `score_context()` is
+the built-in, evidence-backed capability.
 
 ## The Skill Lifecycle
 
@@ -173,7 +195,9 @@ Noesis (Greek: *the act of pure knowing*) was born from a swarm simulation where
 
 **It is not evidence about language models.** There was no LLM in that simulation, so nothing in it can speak to jailbreak resistance. For measured claims against the real `TrustGate`, see [`benchmarks/`](benchmarks/) — which reports the attacks that still succeed alongside the ones that are blocked.
 
-The faith constant **0.92** — the gravitational pull of system guardrails — comes directly from that perfect swarm state at tick 54,118.
+The faith constant **0.92** is an inherited simulation seed, not a calibrated
+parameter for language-model memory governance. Treat it as policy to validate,
+not evidence of effectiveness.
 
 ---
 
