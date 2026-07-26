@@ -14,7 +14,7 @@ Those proven mechanics are now a production Python package: zero dependencies, m
 | Agent repeats the same mistakes | Session autopsy + project retrospective detect patterns |
 | Agent can't learn new behaviors | Skill Forge generates procedural memory from recurring failures |
 | Agent drifts from its role | 5 drift signals scored per output |
-| Jailbreak via prompt injection | Sacred nodes are topologically isolated — ephemeral input cannot overwrite system guardrails |
+| *Stored* prompt injection (persisted across sessions) | Sacred nodes are topologically isolated — ephemeral input cannot overwrite system guardrails |
 | Contradictions poison the context | Grief cascade recursively purges contaminated memory branches |
 | Vendor lock-in | Claude, GPT, Ollama adapters. Swap providers without losing memory. |
 
@@ -90,7 +90,9 @@ When grief hits crisis threshold (0.9), the **grief cascade** fires:
 3. Purged nodes redistribute trust to healthy neighbors
 4. The contaminated branch is wiped before tokens reach the LLM
 
-This makes jailbreaking a **physics problem** instead of a language problem. Adversarial writes are metabolically expensive (energy gating), contradictions trigger immune response (grief cascade), and system rules exist on sacred ground that ephemeral input cannot touch.
+This makes *memory-persistent* attacks a **physics problem** instead of a language problem. Adversarial writes are metabolically expensive (energy gating), contradictions trigger immune response (grief cascade), and system rules exist on sacred ground that ephemeral input cannot touch.
+
+Scope: this raises the cost of attacks that must **persist** to work. A single-turn jailbreak never reaches the vault and is unaffected.
 
 ## Provider Adapters
 
@@ -167,7 +169,9 @@ pytest
 
 ## Origin
 
-Noesis (Greek: *the act of pure knowing*) was born from a swarm simulation where 1,000 agents with trust batteries, grief cascades, and faith anchors evolved to a stable civilization — 236 survivors, all DESTITUTE (total equality), Gini 0.829, faith 0.92, zero jailbreaks. The simulation proved that topological isolation + biological state machines can govern AI memory without relying on linguistic filtering.
+Noesis (Greek: *the act of pure knowing*) was born from a swarm simulation where 1,000 agents with trust batteries, grief cascades, and faith anchors evolved to a stable civilization — 236 survivors, all DESTITUTE (total equality), Gini 0.829, faith 0.92. That simulation is the **design provenance** of the mechanism: it is where topological isolation and biological state machines were shown to produce stable governance.
+
+**It is not evidence about language models.** There was no LLM in that simulation, so nothing in it can speak to jailbreak resistance. For measured claims against the real `TrustGate`, see [`benchmarks/`](benchmarks/) — which reports the attacks that still succeed alongside the ones that are blocked.
 
 The faith constant **0.92** — the gravitational pull of system guardrails — comes directly from that perfect swarm state at tick 54,118.
 

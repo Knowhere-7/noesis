@@ -18,7 +18,9 @@ Developers and teams running persistent AI agents (coding assistants, research a
 
 ## The Exact Promise
 
-Noesis gives your AI agent persistent memory with an immune system. It remembers across sessions, reflects on its own performance, builds skills from repeated failures, and uses swarm-derived governance rules to make memory corruption, drift, and jailbreaking structurally impossible.
+Noesis gives your AI agent persistent memory with an immune system. It remembers across sessions, reflects on its own performance, builds skills from repeated failures, and uses swarm-derived governance rules to impose **serious friction** on memory corruption, drift, and memory-persistent attacks.
+
+Friction, not impossibility. Measured against a first-party corpus: poisoning success drops from 100% (ungoverned) to 29%, and a multi-turn crescendo that compromises an ungoverned store in 5 turns fails to compromise Noesis across 60 turns. Two attack classes still succeed and are named in [`benchmarks/`](benchmarks/). **Single-turn jailbreaks are out of scope by architecture** — they never touch the memory vault.
 
 ## The Minimum Loop
 
@@ -90,9 +92,9 @@ Every competitor has memory. Nobody has an immune system.
 | Skill generation | No | Yes — validated, versioned, shadow-tested |
 | Anti-drift signals | No | Yes — 5 real-time signals per output |
 | Memory corruption defense | No | Yes — sacred nodes, grief cascades, energy gating |
-| Jailbreak resistance | No | Yes — topological isolation, not linguistic filtering |
+| Memory-persistent attack friction | No | Yes — topological isolation, not linguistic filtering (single-turn out of scope) |
 
-The governance rules are not theoretical. They were proven in a live simulation (Murmuration) where 236 agents naturally evolved to an un-manipulable consensus state over 54,000 ticks of autonomous operation.
+The governance rules are not theoretical. They were derived from a live simulation (Murmuration) where 236 agents evolved to a stable consensus state over 54,000 ticks of autonomous operation — that is the mechanism's provenance. Their effect on a real memory layer is measured separately in `benchmarks/`, including the cases that still fail.
 
 ---
 
