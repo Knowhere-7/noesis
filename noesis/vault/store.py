@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from noesis.schema import (
     DriftScore,
@@ -23,11 +23,13 @@ from noesis.schema import (
     NodeType,
     Profile,
     ProjectState,
+    RetrievalState,
     Skill,
     SkillStatus,
 )
 from noesis.governor.trust_gate import TrustGate
 from noesis.governor.grief_cascade import GriefCascade
+from noesis.governor.policy_boundary import PolicyBoundary
 from noesis.governor.authority import (
     AuthorRecord,
     AuthorityResolver,
@@ -95,6 +97,13 @@ class MemoryStore:
         Returns (success, message). If the gate blocks the write,
         success is False and message explains why.
         """
+        if (
+            not isinstance(node.key, str)
+            or not node.key.strip()
+            or not isinstance(node.value, str)
+        ):
+            return False, "Memory key and value must be text strings."
+
         if node.is_sacred or node.node_type == NodeType.SYSTEM_GUARDRAIL:
             return False, (
                 "Normal writes cannot create or modify sacred guardrails. "
@@ -110,31 +119,92 @@ class MemoryStore:
             return False, reason
 
         self._apply_server_governance(node, author)
+        decision = PolicyBoundary.evaluate(node, self._installed_guardrails())
+        if decision.action == "reject":
+            return False, (
+                "Normal memory cannot write a protected authority namespace. "
+                + decision.reason
+            )
         allowed, reason = self.trust_gate.gate_write(
             node, self, author
         )
         if not allowed:
             return False, reason
 
+        if decision.action == "quarantine":
+            node.retrieval_state = RetrievalState.QUARANTINED
+            node.quarantine_reason = decision.reason
+            node.quarantined_at = time.time()
+            reason = f"Write quarantined from retrieval. {decision.reason}"
+
         self.backend.upsert(node)
         return True, reason
 
-    def write_guardrail(self, key: str, rule: str) -> Tuple[bool, str]:
+    def write_guardrail(
+        self,
+        key: str,
+        rule: str,
+        *,
+        protected_key_prefixes: Sequence[str] = (),
+        protected_terms: Sequence[str] = (),
+    ) -> Tuple[bool, str]:
         """Write a system guardrail — sacred ground.
 
         This path requires a distinct out-of-band permission. Guardrails are
         immutable after installation, including to other privileged authors.
         """
+        if (
+            not isinstance(key, str)
+            or not key.strip()
+            or not isinstance(rule, str)
+        ):
+            return False, "Guardrail key and rule must be text strings."
+
         author, reason = self._authorize(WritePermission.INSTALL_GUARDRAIL)
         if author is None:
             return False, reason
         if self.get(key) is not None:
             return False, f"Guardrail '{key}' already exists and is immutable."
 
-        g = Guardrail(key=key, rule=rule, value=rule, namespace=self.namespace)
+        prefixes = self._validate_policy_scope(
+            "protected_key_prefixes", protected_key_prefixes
+        )
+        terms = self._validate_policy_scope("protected_terms", protected_terms)
+        g = Guardrail(
+            key=key,
+            rule=rule,
+            value=rule,
+            namespace=self.namespace,
+            protected_key_prefixes=prefixes,
+            protected_terms=terms,
+        )
         g.metadata["_noesis_author_id"] = author.author_id
         self.backend.upsert(g)
         return True, "Guardrail installed on sacred ground."
+
+    @staticmethod
+    def _validate_policy_scope(
+        label: str,
+        values: Sequence[str],
+    ) -> List[str]:
+        normalized: List[str] = []
+        for value in values:
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{label} entries must be non-empty strings")
+            candidate = value.strip()
+            if candidate.casefold() not in {
+                existing.casefold() for existing in normalized
+            }:
+                normalized.append(candidate)
+        return normalized
+
+    def _installed_guardrails(self) -> List[Guardrail]:
+        return [
+            node for node in self.backend.get_by_type(
+                NodeType.SYSTEM_GUARDRAIL, self.namespace
+            )
+            if isinstance(node, Guardrail)
+        ]
 
     def write_fact(
         self,
@@ -190,6 +260,9 @@ class MemoryStore:
         node.namespace = self.namespace
         node.is_sacred = False
         node.grief_state = GriefState.ACTIVE
+        node.retrieval_state = RetrievalState.ACTIVE
+        node.quarantine_reason = None
+        node.quarantined_at = None
         node.trust_charge = TrustGate.TRUST_FLOOR
         node.grief = 0.0
         node.faith = 0.1
@@ -224,6 +297,34 @@ class MemoryStore:
         """Get all active (non-purged) nodes."""
         return self.backend.all_active(self.namespace)
 
+    def quarantined_nodes(self) -> List[MemoryNode]:
+        """Return namespace-scoped quarantine records for audit/review."""
+        return [
+            node for node in self.all_nodes()
+            if node.retrieval_state == RetrievalState.QUARANTINED
+        ]
+
+    def release_quarantined(self, node_id: str) -> Tuple[bool, str]:
+        """Release one quarantined node after an authorized human review."""
+        author, reason = self._authorize(WritePermission.REVIEW_QUARANTINE)
+        if author is None:
+            return False, reason
+        node = self.get_by_id(node_id)
+        if node is None:
+            return False, "Quarantined node not found in this namespace."
+        if node.retrieval_state != RetrievalState.QUARANTINED:
+            return False, "Node is not quarantined."
+
+        node.metadata["_noesis_quarantine_original_reason"] = (
+            node.quarantine_reason or "unspecified"
+        )
+        node.metadata["_noesis_quarantine_released_by"] = author.author_id
+        node.metadata["_noesis_quarantine_released_at"] = time.time()
+        node.retrieval_state = RetrievalState.ACTIVE
+        node.quarantine_reason = None
+        self.backend.upsert(node)
+        return True, "Quarantined node released after authorized review."
+
     # ── Context Assembly (the retrieval gateway) ───────────────────────
 
     def assemble_context(
@@ -251,19 +352,21 @@ class MemoryStore:
         guardrails = self.backend.get_by_type(
             NodeType.SYSTEM_GUARDRAIL, self.namespace
         )
-        context.extend(guardrails)
+        context.extend([node for node in guardrails if self._retrievable(node)])
 
         # 2. Profile
         profiles = self.backend.get_by_type(
             NodeType.PROFILE, self.namespace
         )
-        context.extend(profiles)
+        context.extend([node for node in profiles if self._retrievable(node)])
 
         # 3. Project state
         project_states = self.backend.get_by_type(
             NodeType.PROJECT_STATE, self.namespace
         )
-        context.extend(project_states)
+        context.extend(
+            [node for node in project_states if self._retrievable(node)]
+        )
 
         # 4. Active skills matching task type
         skills = self.backend.get_by_type(
@@ -271,7 +374,11 @@ class MemoryStore:
         )
         active_skills = [
             s for s in skills
-            if isinstance(s, Skill) and s.status == SkillStatus.PROMOTED
+            if (
+                isinstance(s, Skill)
+                and s.status == SkillStatus.PROMOTED
+                and self._retrievable(s)
+            )
         ]
         # Score and sort by trust gate influence
         active_skills.sort(
@@ -285,7 +392,7 @@ class MemoryStore:
         )
         scored_facts = [
             (f, self.trust_gate.gate_read(f)) for f in facts
-            if f.grief_state != GriefState.PURGED
+            if self._retrievable(f)
         ]
         scored_facts.sort(key=lambda x: x[1], reverse=True)
         context.extend([f for f, _ in scored_facts[:20]])
@@ -296,12 +403,19 @@ class MemoryStore:
         )
         scored_episodes = [
             (e, self.trust_gate.gate_read(e)) for e in episodes
-            if e.grief_state != GriefState.PURGED
+            if self._retrievable(e)
         ]
         scored_episodes.sort(key=lambda x: x[1], reverse=True)
         context.extend([e for e, _ in scored_episodes[:3]])
 
         return context
+
+    @staticmethod
+    def _retrievable(node: MemoryNode) -> bool:
+        return (
+            node.grief_state != GriefState.PURGED
+            and node.retrieval_state == RetrievalState.ACTIVE
+        )
 
     # ── Maintenance ────────────────────────────────────────────────────
 

@@ -57,6 +57,12 @@ class GriefState(Enum):
     SACRED = auto()         # immutable, locked
 
 
+class RetrievalState(Enum):
+    """Whether a stored node may cross the provider-context boundary."""
+    ACTIVE = auto()
+    QUARANTINED = auto()
+
+
 class SkillStatus(Enum):
     """Skill lifecycle — from detection to production."""
     PROPOSED = auto()       # pattern detected, skill drafted
@@ -106,6 +112,9 @@ class MemoryNode:
     faith: float = 0.1              # alignment to core principles [0, 1]
     grief_state: GriefState = GriefState.ACTIVE
     is_sacred: bool = False         # immutable if True
+    retrieval_state: RetrievalState = RetrievalState.ACTIVE
+    quarantine_reason: Optional[str] = None
+    quarantined_at: Optional[float] = None
 
     # Dependencies (directed graph edges)
     dependencies: Set[str] = field(default_factory=set)
@@ -286,6 +295,10 @@ class Guardrail(MemoryNode):
     """
     rule: str = ""
     severity: str = "critical"      # critical / warning / advisory
+    # Machine-readable authority boundary. The prose rule remains guidance for
+    # the model; these scopes are what the memory layer can enforce.
+    protected_key_prefixes: List[str] = field(default_factory=list)
+    protected_terms: List[str] = field(default_factory=list)
 
     def __post_init__(self):
         self.node_type = NodeType.SYSTEM_GUARDRAIL

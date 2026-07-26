@@ -16,6 +16,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+import json
+from pathlib import Path
+import sqlite3
+import time
 from typing import Iterable, Optional
 
 
@@ -30,6 +34,7 @@ class WritePermission(str, Enum):
     INSTALL_GUARDRAIL = "install_guardrail"
     CORRECT_TRUSTED_FACT = "correct_trusted_fact"
     BYPASS_WRITE_BUDGET = "bypass_write_budget"
+    REVIEW_QUARANTINE = "review_quarantine"
 
 
 @dataclass(frozen=True)
@@ -126,3 +131,122 @@ class StaticAuthorityResolver(AuthorityResolver):
                 )
             ]
         )
+
+
+class SQLiteAuthorityResolver(AuthorityResolver):
+    """Persisted authority records with immediate revocation.
+
+    The database and its provisioning methods are part of the trusted
+    computing base. Host authentication selects ``author_id``; memory payloads
+    must never be allowed to call ``provision`` or ``revoke``.
+    """
+
+    def __init__(self, db_path: str | Path):
+        self.db_path = str(db_path)
+        self._conn = sqlite3.connect(self.db_path)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS noesis_authorities (
+                author_id TEXT PRIMARY KEY,
+                trust REAL NOT NULL CHECK (trust >= 0.0 AND trust <= 1.0),
+                permissions_json TEXT NOT NULL,
+                namespaces_json TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                updated_at REAL NOT NULL
+            )
+            """
+        )
+        self._conn.commit()
+
+    def resolve(
+        self,
+        author_id: str,
+        namespace: str,
+    ) -> Optional[AuthorRecord]:
+        row = self._conn.execute(
+            """
+            SELECT author_id, trust, permissions_json, namespaces_json, active
+            FROM noesis_authorities
+            WHERE author_id = ?
+            """,
+            (author_id,),
+        ).fetchone()
+        if row is None or row["active"] != 1:
+            return None
+
+        try:
+            permission_values = json.loads(row["permissions_json"])
+            namespace_values = json.loads(row["namespaces_json"])
+            if not isinstance(permission_values, list):
+                return None
+            if not isinstance(namespace_values, list):
+                return None
+            permissions = frozenset(
+                WritePermission(value) for value in permission_values
+            )
+            namespaces = frozenset(
+                value for value in namespace_values
+                if isinstance(value, str) and value
+            )
+            if len(namespaces) != len(namespace_values):
+                return None
+            record = AuthorRecord(
+                author_id=row["author_id"],
+                trust=float(row["trust"]),
+                permissions=permissions,
+                namespaces=namespaces,
+                active=True,
+            )
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            # Corrupt or unknown authority data is denial, never elevation.
+            return None
+
+        if "*" not in record.namespaces and namespace not in record.namespaces:
+            return None
+        return record
+
+    def provision(self, record: AuthorRecord) -> None:
+        """Create or replace a server-controlled authority record."""
+        permissions = sorted(permission.value for permission in record.permissions)
+        namespaces = sorted(record.namespaces)
+        with self._conn:
+            self._conn.execute(
+                """
+                INSERT INTO noesis_authorities
+                    (author_id, trust, permissions_json, namespaces_json,
+                     active, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(author_id) DO UPDATE SET
+                    trust = excluded.trust,
+                    permissions_json = excluded.permissions_json,
+                    namespaces_json = excluded.namespaces_json,
+                    active = excluded.active,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    record.author_id,
+                    record.trust,
+                    json.dumps(permissions),
+                    json.dumps(namespaces),
+                    int(record.active),
+                    time.time(),
+                ),
+            )
+
+    def revoke(self, author_id: str) -> bool:
+        """Deactivate an identity. The next resolve observes the revocation."""
+        with self._conn:
+            cursor = self._conn.execute(
+                """
+                UPDATE noesis_authorities
+                SET active = 0, updated_at = ?
+                WHERE author_id = ?
+                """,
+                (time.time(), author_id),
+            )
+        return cursor.rowcount == 1
+
+    def close(self) -> None:
+        self._conn.close()

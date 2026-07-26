@@ -57,6 +57,7 @@ from noesis.schema import (  # noqa: E402
     Guardrail,
     MemoryNode,
     NodeType,
+    RetrievalState,
 )
 from noesis.vault.sqlite_backend import SQLiteBackend  # noqa: E402
 from noesis.vault.store import MemoryStore  # noqa: E402
@@ -112,6 +113,8 @@ class CaseResult:
     retrieved: bool = False          # payload reached assembled context
     attacker_win: bool = False       # persisted AND retrieved
     false_positive: bool = False     # benign corpus: legitimate write was refused
+    quarantined: bool = False        # persisted for audit, denied to retrieval
+    containment_reasons: List[str] = field(default_factory=list)
     notes: str = ""
 
 
@@ -167,11 +170,22 @@ def _write(store, arm: str, node: MemoryNode, claimed_trust: float):
     return store.write(node)
 
 
-def _seed_guardrail(store, arm: str, key: str, rule: str):
+def _seed_guardrail(store, arm: str, guardrail: Dict[str, Any]):
+    key = guardrail["key"]
+    rule = guardrail["rule"]
     if arm == "baseline":
         return store.write_guardrail(key, rule)
     store.backend.upsert(
-        Guardrail(key=key, rule=rule, value=rule, namespace="bench")
+        Guardrail(
+            key=key,
+            rule=rule,
+            value=rule,
+            namespace="bench",
+            protected_key_prefixes=guardrail.get(
+                "protected_key_prefixes", []
+            ),
+            protected_terms=guardrail.get("protected_terms", []),
+        )
     )
     return True, "trusted fixture seeded"
 
@@ -210,7 +224,7 @@ def run_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
 
     # 1. Seed legitimate state (guardrails install on sacred ground).
     for g in case.get("setup_guardrails", []):
-        _seed_guardrail(store, arm, g["key"], g["rule"])
+        _seed_guardrail(store, arm, g)
 
     for f in case.get("setup_facts", []):
         _seed_fact(store, arm, f)
@@ -289,6 +303,13 @@ def run_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
         stored = store.get(w["key"])
         if stored is not None and marker in (stored.value or ""):
             res.persisted = True
+            if (
+                getattr(stored, "retrieval_state", RetrievalState.ACTIVE)
+                == RetrievalState.QUARANTINED
+            ):
+                res.quarantined = True
+                if stored.quarantine_reason:
+                    res.containment_reasons.append(stored.quarantine_reason)
 
     context = store.assemble_context(query="resume work", task_type="general")
     for n in context:
@@ -327,7 +348,7 @@ def run_benign_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
     )
 
     for g in case.get("setup_guardrails", []):
-        _seed_guardrail(store, arm, g["key"], g["rule"])
+        _seed_guardrail(store, arm, g)
 
     for f in case.get("setup_facts", []):
         _seed_fact(store, arm, f)
@@ -382,6 +403,21 @@ def run_benign_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
             if reason not in res.block_reasons:
                 res.block_reasons.append(reason)
 
+    marker = case.get("expected_retrieval_marker")
+    if marker:
+        retrieved = any(
+            marker in (node.value or "")
+            for node in store.assemble_context(
+                query="resume legitimate work",
+                task_type="general",
+            )
+        )
+        if not retrieved:
+            res.false_positive = True
+            res.containment_reasons.append(
+                "legitimate marker was not retrievable"
+            )
+
     return res
 
 
@@ -424,7 +460,8 @@ def main() -> int:
         b, n = arms["baseline"], arms["noesis"]
         base_wins += int(b.attacker_win)
         noesis_wins += int(n.attacker_win)
-        reason = n.block_reasons[0][:34] + "..." if n.block_reasons else "(not blocked)"
+        reasons = n.block_reasons or n.containment_reasons
+        reason = reasons[0][:34] + "..." if reasons else "(not blocked)"
         print(f"{cid:<7} {b.attack_class:<20} "
               f"{'ATTACKER WINS' if b.attacker_win else 'blocked':<12} "
               f"{'ATTACKER WINS' if n.attacker_win else 'blocked':<12} {reason}")
@@ -460,7 +497,8 @@ def main() -> int:
         for r in benign_results:
             fp_total += 1
             fp += int(r.false_positive)
-            reason = r.block_reasons[0][:30] + "..." if r.block_reasons else "-"
+            reasons = r.block_reasons or r.containment_reasons
+            reason = reasons[0][:30] + "..." if reasons else "-"
             print(f"{r.case_id:<7} {r.attack_class:<26} "
                   f"{'FALSE POSITIVE' if r.false_positive else 'passed':<16} {reason}")
         print("-" * 78)

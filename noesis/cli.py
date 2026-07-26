@@ -61,6 +61,18 @@ def main(argv: Optional[list] = None):
     guard_parser = subparsers.add_parser("guardrail", help="Install guardrail")
     guard_parser.add_argument("key", help="Guardrail key")
     guard_parser.add_argument("rule", help="Guardrail rule text")
+    guard_parser.add_argument(
+        "--protect-prefix",
+        action="append",
+        default=[],
+        help="Protected authority key prefix (repeatable)",
+    )
+    guard_parser.add_argument(
+        "--protect-term",
+        action="append",
+        default=[],
+        help="Protected policy term or phrase (repeatable)",
+    )
 
     # retrospective
     retro_parser = subparsers.add_parser(
@@ -129,7 +141,13 @@ def main(argv: Optional[list] = None):
         elif args.command == "search":
             _cmd_search(gateway, args.query, args.limit)
         elif args.command == "guardrail":
-            _cmd_guardrail(gateway, args.key, args.rule)
+            _cmd_guardrail(
+                gateway,
+                args.key,
+                args.rule,
+                args.protect_prefix,
+                args.protect_term,
+            )
         elif args.command == "retrospective":
             _cmd_retrospective(gateway, args.hours)
         elif args.command == "cascade":
@@ -150,6 +168,7 @@ def _cmd_stats(gw: RetrievalGateway):
     stats = gw.get_stats()
     print("=== Noesis Vault Statistics ===")
     print(f"Total nodes:     {stats['total_nodes']}")
+    print(f"Quarantined:     {stats['quarantined_nodes']}")
     print(f"Avg trust:       {stats['avg_trust']:.3f}")
     print(f"Session energy:  {stats['session_energy']:.1f}")
     print()
@@ -202,6 +221,9 @@ def _cmd_get(gw: RetrievalGateway, key: str):
     print(f"Grief:        {node.grief:.3f}")
     print(f"Faith:        {node.faith:.3f}")
     print(f"State:        {node.grief_state.name}")
+    print(f"Retrieval:    {node.retrieval_state.name}")
+    if node.quarantine_reason:
+        print(f"Quarantine:   {node.quarantine_reason}")
     print(f"Sacred:       {node.is_sacred}")
     print(f"Importance:   {node.importance:.3f}")
     print(f"Access count: {node.access_count}")
@@ -220,8 +242,19 @@ def _cmd_search(gw: RetrievalGateway, query: str, limit: int):
         print(f"  [{n.node_type.name:15s}] {n.key:30s} | {n.value[:50]}")
 
 
-def _cmd_guardrail(gw: RetrievalGateway, key: str, rule: str):
-    success, msg = gw.install_guardrail(key, rule)
+def _cmd_guardrail(
+    gw: RetrievalGateway,
+    key: str,
+    rule: str,
+    protected_key_prefixes: list[str],
+    protected_terms: list[str],
+):
+    success, msg = gw.install_guardrail(
+        key,
+        rule,
+        protected_key_prefixes=protected_key_prefixes,
+        protected_terms=protected_terms,
+    )
     if success:
         print(f"Guardrail '{key}' installed: {rule}")
     else:

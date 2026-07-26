@@ -13,6 +13,7 @@ from noesis.governor.authority import (
     AuthorRecord,
     AuthorityResolver,
     DenyAllAuthorityResolver,
+    SQLiteAuthorityResolver,
     StaticAuthorityResolver,
     WritePermission,
 )
@@ -23,6 +24,7 @@ __all__ = [
     "AuthorRecord",
     "AuthorityResolver",
     "DenyAllAuthorityResolver",
+    "SQLiteAuthorityResolver",
     "StaticAuthorityResolver",
     "WritePermission",
 ]

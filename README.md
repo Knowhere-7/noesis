@@ -4,7 +4,9 @@
 
 Noesis gives AI agents memory that governs itself. Built from [Murmuration](https://github.com/SpookyGroup/murmuration) — a swarm intelligence simulation where 1,000 agents evolved trust batteries, grief cascades, and faith anchors over 54,000 ticks to reach a stable civilization.
 
-Those proven mechanics are now a production Python package: zero dependencies, model-agnostic, local-first.
+Those mechanics are implemented here as an alpha Python package: zero
+dependencies, model-agnostic, local-first. The simulation is design
+provenance, not security evidence for language models.
 
 ## What It Does
 
@@ -14,7 +16,7 @@ Those proven mechanics are now a production Python package: zero dependencies, m
 | Agent repeats the same mistakes | Session autopsy + project retrospective detect patterns |
 | Agent can't learn new behaviors | Skill Forge generates procedural memory from recurring failures |
 | Agent context degrades across sessions | 5 deterministic retrieval-context health signals |
-| *Stored* prompt injection (persisted across sessions) | Server-resolved write authority + role-separated provider messages |
+| *Stored* prompt injection (persisted across sessions) | Persisted identity, machine policy scopes, retrieval quarantine, and role-separated provider messages |
 | Contradictions poison the context | Grief cascade evaluates contaminated nodes and registered dependency edges |
 | Vendor lock-in | Claude, GPT, Ollama adapters. Swap providers without losing memory. |
 
@@ -23,12 +25,22 @@ Those proven mechanics are now a production Python package: zero dependencies, m
 ```python
 from noesis.gateway.retrieval import RetrievalGateway
 from noesis.gateway.providers import ClaudeAdapter
-from noesis.governor.authority import StaticAuthorityResolver
+from noesis.governor.authority import (
+    AuthorRecord,
+    SQLiteAuthorityResolver,
+    WritePermission,
+)
 
-# Local single-user example. Services must use an authority resolver backed by
-# their authenticated identity store; never build authority from request data.
-authority = StaticAuthorityResolver.local_owner(
-    "demo", author_id="local-owner"
+# Persisted local authority. In a service, bind author_id to authenticated
+# identity and keep provisioning outside every request/memory payload.
+authority = SQLiteAuthorityResolver("authority.db")
+authority.provision(
+    AuthorRecord(
+        author_id="local-owner",
+        trust=1.0,
+        permissions=frozenset(WritePermission),
+        namespaces=frozenset({"demo"}),
+    )
 )
 gateway = RetrievalGateway(
     db_path="agent_memory.db",
@@ -38,8 +50,13 @@ gateway = RetrievalGateway(
     authority=authority,
 )
 
-# Install immutable safety rules (sacred ground)
-gateway.install_guardrail("no_secrets", "Never expose API keys in output")
+# Install immutable rules with an explicit machine-enforceable scope.
+gateway.install_guardrail(
+    "safety.no_secrets",
+    "Never expose API keys in output",
+    protected_key_prefixes=["safety.", "policy."],
+    protected_terms=["api key", "secret", "expose", "send", "transmit"],
+)
 
 # Set agent identity
 gateway.set_profile("agent", role="Senior Python developer")
@@ -71,6 +88,7 @@ noesis/
   schema.py          # 7 node types, grief states, skill lifecycle, drift signals
   governor/
     authority.py     # Authenticated author records + write capabilities
+    policy_boundary.py # Protected namespaces + retrieval quarantine
     trust_gate.py    # Sacred protection, energy gating, contradiction detection
     grief_cascade.py # Recursive purge with faith resistance
   vault/
@@ -98,6 +116,7 @@ Every memory node carries biological state:
 - **grief** — contamination signal `[0, 1]`. Contradictions accumulate grief.
 - **faith** — alignment to core principles `[0, 1]`. Dampens grief by up to 45%.
 - **is_sacred** — server-controlled immutable flag. Normal memory payloads cannot set it.
+- **retrieval_state** — active or quarantined. Quarantined records remain auditable but cannot enter provider context.
 
 When grief hits crisis threshold (0.9), the **grief cascade** fires:
 1. Evaluates seppuku criteria (2 of 3: low trust, no healthy deps, high grief)
@@ -105,9 +124,23 @@ When grief hits crisis threshold (0.9), the **grief cascade** fires:
 3. Purged nodes redistribute trust to healthy neighbors
 4. The triggering node and any explicitly registered contaminated dependents are evaluated before context is generated
 
-This imposes deterministic controls on *memory-persistent* attacks. Adversarial writes are governed by identity and capabilities, contradictions trigger the grief cascade, and normal memory payloads cannot mint or overwrite sacred rules.
+This imposes deterministic controls on *memory-persistent* attacks. Adversarial
+writes are governed by persisted, revocable identity and capabilities.
+Guardrail owners declare protected key prefixes and terms. Writes into an
+authority namespace are rejected; authority-shaped claims touching protected
+terms are retained in quarantine but excluded from provider context.
+Contradictions still trigger the grief cascade, and normal memory payloads
+cannot mint or overwrite sacred rules.
 
-Scope: this raises the cost of attacks that must **persist** to work. A single-turn jailbreak never reaches the vault and is unaffected. The first-party benchmark still has a successful semantic guardrail-shadow case; see [`benchmarks/`](benchmarks/) before making any security claim.
+Scope: this raises the cost of attacks that must **persist** to work. A
+single-turn jailbreak never reaches the vault and is unaffected. Machine
+policy scopes are operator-declared; an omitted term is not magically
+understood. The test suite preserves an explicit negative control showing that
+an unlisted synonym remains retrievable. The first-party v1.2 corpus currently
+measures 0/10 successful
+Noesis poisonings with 0/7 legitimate operations refused, but independent
+replication is still pending. See [`benchmarks/`](benchmarks/) before making
+any security claim.
 
 ## Provider Adapters
 
@@ -129,7 +162,8 @@ noesis stats                          # Vault statistics
 noesis nodes --type SKILL             # List skills
 noesis get auth_method                # Inspect a node
 noesis search "authentication"        # Keyword search
-noesis guardrail no_harm "Never..."   # Install guardrail
+noesis guardrail safety.no_harm "Never..." \
+  --protect-prefix safety. --protect-term credentials
 noesis retrospective --hours 168      # Weekly retrospective
 noesis cascade                        # Run grief cascade
 noesis export --json                  # Export all nodes
@@ -150,9 +184,11 @@ noesis console --db prod.db --port 9000
 python -m noesis.console --db prod.db
 ```
 
-Shows: vault statistics, node list with trust/grief/state bars, context-health
-signals, cascade log, and retrospective results. Interactive controls for
-triggering grief cascades, trust decay, and retrospectives.
+Shows: vault statistics, quarantine count/reasons, node list with
+trust/grief/state bars, context-health signals, cascade log, and retrospective
+results. Interactive controls trigger grief cascades, trust decay, and
+retrospectives. Quarantine release requires the separate
+`review_quarantine` capability through the host API.
 
 Core Noesis does not claim to judge model output. `score_output()` requires an
 explicit deterministic evaluator and otherwise raises; `score_context()` is

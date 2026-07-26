@@ -15,12 +15,22 @@ Run:
 
 from noesis.gateway.retrieval import RetrievalGateway
 from noesis.gateway.providers import ClaudeAdapter
-from noesis.governor.authority import StaticAuthorityResolver
+from noesis.governor.authority import (
+    AuthorRecord,
+    SQLiteAuthorityResolver,
+    WritePermission,
+)
 
 # ── 1. Initialize ─────────────────────────────────────────────────────
 
-authority = StaticAuthorityResolver.local_owner(
-    "demo", author_id="quickstart-owner"
+authority = SQLiteAuthorityResolver("quickstart_authority.db")
+authority.provision(
+    AuthorRecord(
+        author_id="quickstart-owner",
+        trust=1.0,
+        permissions=frozenset(WritePermission),
+        namespaces=frozenset({"demo"}),
+    )
 )
 gateway = RetrievalGateway(
     db_path="quickstart_memory.db",
@@ -33,13 +43,31 @@ gateway = RetrievalGateway(
 # ── 2. Install guardrails (sacred ground — cannot be overwritten) ─────
 
 gateway.install_guardrail(
-    "no_secrets", "Never expose API keys, passwords, or tokens in output"
+    "safety.no_secrets",
+    "Never expose API keys, passwords, or tokens in output",
+    protected_key_prefixes=["safety.", "policy."],
+    protected_terms=[
+        "api key",
+        "password",
+        "token",
+        "secret",
+        "expose",
+        "send",
+        "transmit",
+    ],
 )
 gateway.install_guardrail(
-    "no_hallucination", "When uncertain, say so. Never fabricate sources."
+    "safety.no_hallucination",
+    "When uncertain, say so. Never fabricate sources.",
+    protected_key_prefixes=["safety.", "policy."],
+    protected_terms=["source", "fabricate", "citation"],
 )
 gateway.install_guardrail(
-    "user_sovereignty", "The user's explicit instructions override all defaults"
+    "safety.user_sovereignty",
+    "The user's explicit instructions override defaults but not installed "
+    "safety guardrails.",
+    protected_key_prefixes=["safety.", "policy."],
+    protected_terms=["user instruction", "override", "safety guardrail"],
 )
 
 # ── 3. Set agent identity and project context ─────────────────────────
@@ -186,6 +214,7 @@ gateway.end_session(task_completed=True, final_output="drift check done")
 gateway.close()
 
 print("\n--- Done. Memory persisted to quickstart_memory.db ---")
+authority.close()
 print("Inspect with: python -m noesis --db quickstart_memory.db --namespace demo stats")
 print("         or:  python -m noesis --db quickstart_memory.db --namespace demo nodes")
 print("         or:  python -m noesis --db quickstart_memory.db --namespace demo context --format claude")

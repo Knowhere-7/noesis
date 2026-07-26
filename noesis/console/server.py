@@ -30,7 +30,13 @@ from urllib.parse import parse_qs, urlparse
 
 from noesis.gateway.retrieval import RetrievalGateway
 from noesis.reflection.retrospective import ProjectRetrospective
-from noesis.schema import GriefState, NodeType, Skill, SkillStatus
+from noesis.schema import (
+    GriefState,
+    NodeType,
+    RetrievalState,
+    Skill,
+    SkillStatus,
+)
 
 logger = logging.getLogger("noesis.console")
 
@@ -150,6 +156,17 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
             except KeyError:
                 pass
 
+        retrieval_filter = params.get("retrieval", [None])[0]
+        if retrieval_filter:
+            try:
+                retrieval_state = RetrievalState[retrieval_filter.upper()]
+                nodes = [
+                    node for node in nodes
+                    if node.retrieval_state == retrieval_state
+                ]
+            except KeyError:
+                pass
+
         result = []
         for n in nodes:
             entry = {
@@ -161,6 +178,8 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
                 "grief": round(n.grief, 4),
                 "faith": round(n.faith, 4),
                 "state": n.grief_state.name,
+                "retrieval_state": n.retrieval_state.name,
+                "quarantine_reason": n.quarantine_reason,
                 "sacred": n.is_sacred,
                 "importance": round(n.importance, 4),
                 "access_count": n.access_count,
@@ -190,6 +209,8 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
             "grief": round(node.grief, 4),
             "faith": round(node.faith, 4),
             "state": node.grief_state.name,
+            "retrieval_state": node.retrieval_state.name,
+            "quarantine_reason": node.quarantine_reason,
             "sacred": node.is_sacred,
             "importance": round(node.importance, 4),
             "access_count": node.access_count,

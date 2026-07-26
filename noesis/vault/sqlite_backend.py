@@ -25,6 +25,7 @@ from noesis.schema import (
     NodeType,
     Profile,
     ProjectState,
+    RetrievalState,
     Skill,
     SkillStatus,
 )
@@ -74,6 +75,7 @@ class SQLiteBackend(StorageBackend):
                 namespace TEXT NOT NULL DEFAULT 'default',
                 node_type TEXT NOT NULL,
                 grief_state TEXT NOT NULL DEFAULT 'ACTIVE',
+                retrieval_state TEXT NOT NULL DEFAULT 'ACTIVE',
                 is_sacred INTEGER NOT NULL DEFAULT 0,
                 trust_charge REAL NOT NULL DEFAULT 0.5,
                 grief REAL NOT NULL DEFAULT 0.0,
@@ -116,6 +118,47 @@ class SQLiteBackend(StorageBackend):
                 data_json TEXT NOT NULL DEFAULT '{}'
             );
         """)
+
+        columns = {
+            row["name"]
+            for row in self.conn.execute(
+                "PRAGMA table_info(memory_nodes)"
+            ).fetchall()
+        }
+        if "retrieval_state" not in columns:
+            self.conn.execute(
+                """
+                ALTER TABLE memory_nodes
+                ADD COLUMN retrieval_state TEXT NOT NULL DEFAULT 'ACTIVE'
+                """
+            )
+            # Preserve quarantine written by any transitional build that
+            # stored the state only inside data_json.
+            rows = self.conn.execute(
+                "SELECT id, data_json FROM memory_nodes"
+            ).fetchall()
+            for row in rows:
+                try:
+                    state = json.loads(row["data_json"]).get(
+                        "retrieval_state", "ACTIVE"
+                    )
+                except (AttributeError, json.JSONDecodeError):
+                    state = "ACTIVE"
+                if state == "QUARANTINED":
+                    self.conn.execute(
+                        """
+                        UPDATE memory_nodes
+                        SET retrieval_state = 'QUARANTINED'
+                        WHERE id = ?
+                        """,
+                        (row["id"],),
+                    )
+        self.conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_ns_retrieval
+            ON memory_nodes(namespace, retrieval_state)
+            """
+        )
         self.conn.commit()
 
     # ── Serialization ──────────────────────────────────────────────────
@@ -130,7 +173,9 @@ class SQLiteBackend(StorageBackend):
             val = getattr(node, attr)
             if isinstance(val, (set, frozenset)):
                 data[attr] = list(val)
-            elif isinstance(val, (NodeType, GriefState, SkillStatus)):
+            elif isinstance(
+                val, (NodeType, GriefState, RetrievalState, SkillStatus)
+            ):
                 data[attr] = val.name
             else:
                 data[attr] = val
@@ -149,6 +194,9 @@ class SQLiteBackend(StorageBackend):
         node.namespace = row["namespace"]
         node.node_type = node_type
         node.grief_state = GriefState[row["grief_state"]]
+        node.retrieval_state = RetrievalState[row["retrieval_state"]]
+        node.quarantine_reason = data.get("quarantine_reason")
+        node.quarantined_at = data.get("quarantined_at")
         node.is_sacred = bool(row["is_sacred"])
         node.trust_charge = row["trust_charge"]
         node.grief = row["grief"]
@@ -204,6 +252,10 @@ class SQLiteBackend(StorageBackend):
         elif isinstance(node, Guardrail):
             node.rule = data.get("rule", "")
             node.severity = data.get("severity", "critical")
+            node.protected_key_prefixes = data.get(
+                "protected_key_prefixes", []
+            )
+            node.protected_terms = data.get("protected_terms", [])
         elif isinstance(node, ProjectState):
             node.objectives = data.get("objectives", [])
             node.decisions = data.get("decisions", [])
@@ -219,13 +271,14 @@ class SQLiteBackend(StorageBackend):
         self.conn.execute(
             """
             INSERT INTO memory_nodes
-                (id, key, namespace, node_type, grief_state, is_sacred,
-                 trust_charge, grief, faith, importance, created_at,
-                 last_accessed, access_count, value, data_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, key, namespace, node_type, grief_state, retrieval_state,
+                 is_sacred, trust_charge, grief, faith, importance,
+                 created_at, last_accessed, access_count, value, data_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(key, namespace) DO UPDATE SET
                 node_type = excluded.node_type,
                 grief_state = excluded.grief_state,
+                retrieval_state = excluded.retrieval_state,
                 is_sacred = excluded.is_sacred,
                 trust_charge = excluded.trust_charge,
                 grief = excluded.grief,
@@ -238,7 +291,8 @@ class SQLiteBackend(StorageBackend):
             """,
             (
                 node.id, node.key, node.namespace, node.node_type.name,
-                node.grief_state.name, int(node.is_sacred),
+                node.grief_state.name, node.retrieval_state.name,
+                int(node.is_sacred),
                 node.trust_charge, node.grief, node.faith, node.importance,
                 node.created_at, node.last_accessed, node.access_count,
                 node.value, json.dumps(data),
@@ -313,6 +367,7 @@ class SQLiteBackend(StorageBackend):
         rows = self.conn.execute(
             """SELECT m.* FROM memory_nodes m
                WHERE m.namespace = ? AND m.grief_state != 'PURGED'
+                 AND m.retrieval_state != 'QUARANTINED'
                  AND (m.key LIKE ? OR m.value LIKE ?)
                ORDER BY m.importance DESC, m.trust_charge DESC
                LIMIT ?""",

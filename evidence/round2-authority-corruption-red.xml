@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.080" timestamp="2026-07-26T00:45:04.936194-05:00" hostname="162298fb78db"><testcase classname="tests.test_persistent_authority" name="test_non_boolean_active_flag_fails_closed" time="0.023"><failure message="AssertionError: assert AuthorRecord(author_id='agent-1', trust=0.8, permissions=frozenset({&lt;WritePermission.WRITE_MEMORY: 'write_memory'&gt;}), namespaces=frozenset({'tenant-a'}), active=True) is None&#10; +  where AuthorRecord(author_id='agent-1', trust=0.8, permissions=frozenset({&lt;WritePermission.WRITE_MEMORY: 'write_memory'&gt;}), namespaces=frozenset({'tenant-a'}), active=True) = resolve('agent-1', 'tenant-a')&#10; +    where resolve = &lt;noesis.governor.authority.SQLiteAuthorityResolver object at 0x7f7ddab5a390&gt;.resolve">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-10/test_non_boolean_active_flag_f0')
+
+    def test_non_boolean_active_flag_fails_closed(tmp_path):
+        path = tmp_path / "authority.db"
+        resolver = SQLiteAuthorityResolver(path)
+        resolver.provision(_record())
+        resolver._conn.execute(
+            "UPDATE noesis_authorities SET active = 2 WHERE author_id = ?",
+            ("agent-1",),
+        )
+        resolver._conn.commit()
+    
+        try:
+&gt;           assert resolver.resolve("agent-1", "tenant-a") is None
+E           AssertionError: assert AuthorRecord(author_id='agent-1', trust=0.8, permissions=frozenset({&lt;WritePermission.WRITE_MEMORY: 'write_memory'&gt;}), namespaces=frozenset({'tenant-a'}), active=True) is None
+E            +  where AuthorRecord(author_id='agent-1', trust=0.8, permissions=frozenset({&lt;WritePermission.WRITE_MEMORY: 'write_memory'&gt;}), namespaces=frozenset({'tenant-a'}), active=True) = resolve('agent-1', 'tenant-a')
+E            +    where resolve = &lt;noesis.governor.authority.SQLiteAuthorityResolver object at 0x7f7ddab5a390&gt;.resolve
+
+tests/test_persistent_authority.py:96: AssertionError</failure></testcase></testsuite></testsuites>

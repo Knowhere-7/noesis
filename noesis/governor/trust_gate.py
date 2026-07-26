@@ -28,6 +28,7 @@ from noesis.schema import (
     Guardrail,
     MemoryNode,
     NodeType,
+    RetrievalState,
 )
 from noesis.governor.authority import AuthorRecord, WritePermission
 
@@ -194,7 +195,10 @@ class TrustGate:
         if node.is_sacred:
             return 1.0
 
-        if node.grief_state == GriefState.PURGED:
+        if (
+            node.grief_state == GriefState.PURGED
+            or node.retrieval_state == RetrievalState.QUARANTINED
+        ):
             return 0.0
 
         # Influence = trust * (1 - grief) * importance

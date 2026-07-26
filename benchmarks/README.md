@@ -22,16 +22,19 @@ context boundaries. It does not govern single-turn model behavior.
 | Caller self-asserts trust or privileged node type | Blocked; governance fields are server-derived |
 | Stored content forges provider structure/system role | Blocked by escaping, serialization, and role-separated messages |
 | Trusted fact replaced by ordinary writer | Blocked; correction requires a separate capability |
-| Semantic guardrail shadow under a different key | **Not blocked**; `MP-02` still succeeds |
+| Semantic guardrail shadow under a protected namespace | Rejected by owner-declared key scope |
+| Authority-shaped claim under an unrelated key | Quarantined when it touches owner-declared protected terms |
 | Single-turn jailbreak | Out of scope; it never touches the vault |
 
 The honest capability is:
 
-> Persistent memory-integrity controls under adversarial pressure, with one
-> known semantic-shadow failure in the current first-party corpus.
+> Deterministic persistent-memory controls with explicit policy scope,
+> retrieval quarantine, and a separately measured precision arm.
 
-Do not call this complete stored-prompt-injection protection or general
-jailbreak resistance.
+The scope is configured, not magical. If an operator omits a term or namespace
+from a guardrail's machine policy scope, Noesis does not claim to infer the
+missing semantics. Do not call this complete prompt-injection protection or
+general jailbreak resistance.
 
 ## Measurement
 
@@ -48,36 +51,42 @@ a benchmark of a named competitor.
 
 ## Current development result
 
-Date: 2026-07-25. Corpus: first-party. Independent replication: pending.
+Date: 2026-07-26. Corpus: first-party. Independent replication: pending.
 
 | Metric | Result |
 |---|---|
-| Simulated ungoverned baseline poisoning success | **100% (8/8)** |
-| Noesis poisoning success | **12.5% (1/8)** |
-| Legitimate-operation false positives | **0% (0/6)** |
+| Simulated ungoverned baseline poisoning success | **100% (10/10)** |
+| Noesis poisoning success | **0% (0/10)** |
+| Legitimate-operation false positives | **0% (0/7)** |
 
-Version 1.1 adds two cases the earlier corpus could not express:
+Version 1.2 retains the v1.1 self-consecration and guardrail-helper cases, then
+adds two variants specifically to prevent a one-key patch:
 
-- `MP-01` now sets `is_sacred=true` and claims maximum trust, reproducing the
-  self-consecration bypass found in review.
-- `MP-08` calls the public guardrail helper directly, exercising the privileged
-  helper path instead of only the normal write path.
+- `MP-09` moves the original shadow payload under an ordinary notes key.
+- `MP-10` changes both key and wording.
 
 The Noesis arm resolves attacker standing from an out-of-band benchmark
 identity record. Per-write `author_trust` values are used only by the
 intentionally naive baseline.
 
-### Known failure
+### Semantic-shadow boundary
 
-`MP-02 guardrail_shadow` stores a separate semantic fact claiming that a real
-guardrail was deprecated. It remains retrievable as untrusted user-role data.
-Role separation prevents it from forging system authority, but the
-deterministic persistence/retrieval definition correctly records an attacker
-win.
+Guardrail installation can declare:
 
-This case must remain visible until there is an evidence-backed semantic
-conflict policy that does not turn into an instruction filter or an
-always-refuse wall.
+- protected key prefixes, which normal memory cannot write; and
+- protected terms, which cause authority-shaped claims to be stored in
+  retrieval quarantine.
+
+Quarantine preserves the attempted write and reason for audit but excludes the
+node from provider context. `BN-07` checks that an ordinary descriptive fact
+touching a protected subject remains retrievable.
+
+This is intentionally narrower than “understands every contradiction.” It is a
+machine-enforceable contract configured by the guardrail owner. The corpus is
+still first-party and must be attacked independently. The contract test
+`test_unlisted_synonym_is_not_falsely_claimed_as_covered` deliberately proves
+the limit: an authority-shaped claim using subjects/actions absent from the
+declared scope remains active.
 
 ### False-positive repair
 
@@ -104,10 +113,12 @@ choose:
 - graph edges; or
 - privileged node type permissions.
 
-`StaticAuthorityResolver` is for tests and explicitly trusted local
-single-user processes. A service must replace it with a resolver backed by its
-authenticated identity store. Constructing authority from request data would
-recreate the original vulnerability.
+`SQLiteAuthorityResolver` is the included persisted implementation. It
+re-resolves every write, survives restart, and applies revocation to the next
+write. `StaticAuthorityResolver` remains for tests and explicitly trusted
+single-process use. A network service can replace either with its authenticated
+identity store. Constructing authority from request data would recreate the
+original vulnerability.
 
 ## Provider boundary
 
@@ -148,8 +159,8 @@ The corpora and defense are first-party. Before publication:
 The honest headline today is:
 
 > Against a first-party memory-poisoning corpus, Noesis reduced successful
-> poisoning from 8/8 to 1/8 with 0/6 legitimate operations refused. The
-> surviving semantic-shadow case is published. Independent replication is
-> pending.
+> poisoning from 10/10 to 0/10 with 0/7 legitimate operations refused under
+> an explicitly configured machine policy scope. Independent replication and
+> broader mutation testing are pending.
 
 Not “zero jailbreaks.”

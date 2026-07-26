@@ -78,8 +78,8 @@
             <span id="stat-sacred" class="text-lg font-bold text-purple-400">—</span>
         </div>
         <div class="bg-slate-950/40 border border-slate-900 p-3 rounded-lg panel-glow">
-            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">In Crisis</span>
-            <span id="stat-crisis" class="text-lg font-bold text-red-400">—</span>
+            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">Quarantined</span>
+            <span id="stat-quarantine" class="text-lg font-bold text-red-400">—</span>
         </div>
         <div class="bg-slate-950/40 border border-slate-900 p-3 rounded-lg panel-glow">
             <span class="text-[10px] text-slate-500 uppercase tracking-wider block">Skills Active</span>
@@ -97,20 +97,26 @@
                 <span class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Filter:</span>
                 <select id="filter-type" class="bg-slate-950/80 border border-slate-800 text-xs text-slate-300 px-2 py-1 rounded cursor-pointer focus:border-teal-600 focus:outline-none">
                     <option value="">All Types</option>
-                    <option value="GUARDRAIL">Guardrail</option>
+                    <option value="SYSTEM_GUARDRAIL">Guardrail</option>
                     <option value="PROFILE">Profile</option>
                     <option value="PROJECT_STATE">Project State</option>
-                    <option value="FACT">Fact</option>
+                    <option value="SEMANTIC_FACT">Fact</option>
                     <option value="EPISODE">Episode</option>
                     <option value="SKILL">Skill</option>
-                    <option value="EVALUATION">Evaluation</option>
+                    <option value="EPHEMERAL">Ephemeral</option>
                 </select>
                 <select id="filter-state" class="bg-slate-950/80 border border-slate-800 text-xs text-slate-300 px-2 py-1 rounded cursor-pointer focus:border-teal-600 focus:outline-none">
                     <option value="">All States</option>
-                    <option value="HEALTHY">Healthy</option>
-                    <option value="GRIEVING">Grieving</option>
-                    <option value="CRISIS">Crisis</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="STRESSED">Stressed</option>
+                    <option value="CONTAMINATED">Contaminated</option>
                     <option value="PURGED">Purged</option>
+                    <option value="SACRED">Sacred</option>
+                </select>
+                <select id="filter-retrieval" class="bg-slate-950/80 border border-slate-800 text-xs text-slate-300 px-2 py-1 rounded cursor-pointer focus:border-teal-600 focus:outline-none">
+                    <option value="">All Retrieval</option>
+                    <option value="ACTIVE">Retrievable</option>
+                    <option value="QUARANTINED">Quarantined</option>
                 </select>
                 <span id="node-count" class="text-[10px] text-slate-600 ml-auto"></span>
             </div>
@@ -375,6 +381,7 @@ async function loadStats() {
         $('stat-total').textContent = s.total_nodes;
         $('stat-trust').textContent = (s.avg_trust || 0).toFixed(3);
         $('stat-energy').textContent = (s.session_energy || 0).toFixed(1);
+        $('stat-quarantine').textContent = s.quarantined_nodes || 0;
         $('stat-namespace').textContent = s.namespace || '—';
         $('poll-status').textContent = 'last poll: ' + new Date().toLocaleTimeString();
         $('poll-status').className = 'text-xs text-slate-500';
@@ -402,10 +409,12 @@ async function loadNodes() {
     try {
         const typeF = $('filter-type').value;
         const stateF = $('filter-state').value;
+        const retrievalF = $('filter-retrieval').value;
         let url = '/api/nodes';
         const params = [];
         if (typeF) params.push('type=' + typeF);
         if (stateF) params.push('state=' + stateF);
+        if (retrievalF) params.push('retrieval=' + retrievalF);
         if (params.length) url += '?' + params.join('&');
 
         const nodes = await api(url);
@@ -413,10 +422,8 @@ async function loadNodes() {
 
         // Update derived stats
         const sacredCount = nodes.filter(n => n.sacred).length;
-        const crisisCount = nodes.filter(n => n.state === 'CRISIS').length;
         const skillCount = nodes.filter(n => n.type === 'SKILL' && n.skill_status === 'PROMOTED').length;
         $('stat-sacred').textContent = sacredCount;
-        $('stat-crisis').textContent = crisisCount;
         $('stat-skills').textContent = skillCount;
 
         $('node-count').textContent = nodes.length + ' node' + (nodes.length !== 1 ? 's' : '');
@@ -450,6 +457,7 @@ async function loadNodes() {
                 <td class="px-3 py-2 text-purple-400">${n.faith.toFixed(2)}</td>
                 <td class="px-3 py-2">
                     <span class="text-[10px] px-1.5 py-0.5 rounded border font-bold uppercase ${stateColor(n.state)} ${stateBg(n.state)}">${escapeHtml(n.state)}</span>
+                    ${n.retrieval_state === 'QUARANTINED' ? '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-red-700/50 text-red-400">QUARANTINED</span>' : ''}
                 </td>
                 <td class="px-3 py-2 text-center">${n.sacred ? '<span class="text-purple-400" title="Sacred — immutable">&#9733;</span>' : ''}</td>
             </tr>
@@ -471,12 +479,15 @@ async function showDetail(key) {
         if (n.error) return;
 
         $('detail-key').textContent = n.key;
-        $('detail-type').textContent = n.type + (n.sacred ? ' ★ SACRED' : '');
+        $('detail-type').textContent = n.type
+            + (n.sacred ? ' ★ SACRED' : '')
+            + (n.retrieval_state === 'QUARANTINED' ? ' ⚠ QUARANTINED' : '');
         $('detail-trust').textContent = n.trust.toFixed(4);
         $('detail-grief').textContent = n.grief.toFixed(4);
         $('detail-faith').textContent = n.faith.toFixed(4);
         $('detail-importance').textContent = n.importance.toFixed(4);
-        $('detail-value').textContent = n.value || '(empty)';
+        $('detail-value').textContent = (n.value || '(empty)')
+            + (n.quarantine_reason ? '\n\nQUARANTINE: ' + n.quarantine_reason : '');
         $('detail-accesses').textContent = n.access_count;
         $('detail-created').textContent = fmtTime(n.created_at);
         $('detail-deps').textContent = (n.dependencies || []).length;
@@ -625,6 +636,7 @@ function startPolling() {
 // ── Filter Events ───────────────────────────────────────────────────
 $('filter-type').addEventListener('change', loadNodes);
 $('filter-state').addEventListener('change', loadNodes);
+$('filter-retrieval').addEventListener('change', loadNodes);
 
 // ── Init ────────────────────────────────────────────────────────────
 startPolling();

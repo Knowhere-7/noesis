@@ -400,9 +400,21 @@ class RetrievalGateway:
 
     # ── Guardrails ────────────────────────────────────────────────────
 
-    def install_guardrail(self, key: str, rule: str) -> Tuple[bool, str]:
-        """Install a system guardrail (sacred, immutable)."""
-        return self.store.write_guardrail(key, rule)
+    def install_guardrail(
+        self,
+        key: str,
+        rule: str,
+        *,
+        protected_key_prefixes: Optional[List[str]] = None,
+        protected_terms: Optional[List[str]] = None,
+    ) -> Tuple[bool, str]:
+        """Install an immutable rule and its machine-enforceable scope."""
+        return self.store.write_guardrail(
+            key,
+            rule,
+            protected_key_prefixes=protected_key_prefixes or (),
+            protected_terms=protected_terms or (),
+        )
 
     def set_profile(
         self,
@@ -509,6 +521,7 @@ class RetrievalGateway:
 
         return {
             "total_nodes": len(all_nodes),
+            "quarantined_nodes": len(self.store.quarantined_nodes()),
             "by_type": by_type,
             "by_state": by_state,
             "avg_trust": avg_trust,
