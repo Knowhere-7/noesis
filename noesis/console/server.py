@@ -982,7 +982,13 @@ def run_console(
     global _gateway
     _gateway = RetrievalGateway(db_path=db_path, namespace=namespace)
 
-    server = HTTPServer(("0.0.0.0", port), ConsoleHandler)
+    # Loopback ONLY. This console exposes unauthenticated mutating endpoints
+    # (/store/upsert, /store/purge, /api/inject), and /store/upsert currently
+    # writes via backend.upsert() — bypassing the TrustGate that is the whole
+    # product. Binding 0.0.0.0 put a gate-bypass on every network interface.
+    # Do not widen this until the endpoints are authenticated AND routed
+    # through store.write().
+    server = HTTPServer(("127.0.0.1", port), ConsoleHandler)
     print(f"\n  Noesis Governance Console")
     print(f"  ------------------------")
     print(f"  Database:  {db_path}")
