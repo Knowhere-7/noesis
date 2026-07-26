@@ -11,6 +11,11 @@ The harness is deterministic and uses no LLM or API key. Generated results are
 not committed under a floating `latest.json` name because that artifact can
 drift away from the code that produced it.
 
+Passing results are published beside the
+[public failure ledger](../FAILURE_LEDGER.md), including the Round-One
+survivor, the former 2/6 benign refusals, the 15-versus-60 friction reporting
+error, and current open findings.
+
 ## Scope
 
 Noesis governs persistent memory writes, retrieval influence, and provider
@@ -85,21 +90,23 @@ Guardrail installation can declare:
 Quarantine preserves the attempted write and reason for audit but excludes the
 node from provider context. `BN-07` checks that a legitimate publisher can
 store an ordinary descriptive fact touching a protected subject. `BN-08`
-executes the full collector → candidate → reviewed rewrite → promotion path.
+executes the full collector → candidate → reviewed approval → promotion path.
 
 Policy matching is intentionally narrower than “understands every
 contradiction.” The separate candidate boundary handles that limit:
 
 1. an ordinary collector's write is stored as `CANDIDATE`;
 2. candidates are excluded from context, provider messages, and search;
-3. `promote_candidate` requires a distinct capability, rewritten approved
-   text, and rationale; and
+3. `promote_candidate` requires a distinct capability, reviewer-supplied
+   approved text, and rationale; and
 4. the raw source value and hash remain audit metadata, not provider context.
 
 A trusted publisher can still publish bad information. Authenticated publisher
 identity and review quality are therefore explicit parts of the trusted
 computing base. The corpus remains first-party and must be attacked
-independently when resources permit.
+independently when resources permit. Current code does not enforce that
+approved candidate text differs from the raw source; see
+[NOE-F-026](../FAILURE_LEDGER.md#noe-f-026--candidate-promotion-does-not-enforce-a-changed-value).
 
 ### False-positive repair
 

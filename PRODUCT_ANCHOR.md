@@ -26,7 +26,9 @@ legitimate publisher and collector-promotion refusals are 0/8. Ordinary writes
 remain non-retrievable candidates until separately authorized review and
 promotion. These are development measurements, not independent evidence.
 **Single-turn jailbreaks are out of scope by architecture** — they never touch
-the memory vault.
+the memory vault. Historical failures, corrected claims, current limits, and
+the open promotion contract gap are published in the
+[failure ledger](FAILURE_LEDGER.md).
 
 ## The Minimum Loop
 

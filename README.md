@@ -129,15 +129,17 @@ This imposes deterministic controls on *memory-persistent* attacks. An identity
 with ordinary write authority may ingest evidence, but the record stays a
 non-retrievable candidate. Only an identity with `publish_memory` may write
 directly into model context, and candidate promotion requires the separate
-`promote_candidate` capability, a rewritten approved value, and a review
-rationale. The raw candidate is preserved in audit metadata and never enters
-provider messages.
+`promote_candidate` capability, a reviewer-supplied approved value, and a
+review rationale. The raw candidate is preserved in audit metadata and never
+enters provider messages. Current code does not require the approved value to
+differ from the raw candidate; that open contract gap is
+[NOE-F-026](FAILURE_LEDGER.md#noe-f-026--candidate-promotion-does-not-enforce-a-changed-value).
 
 Guardrail owners may additionally declare protected key prefixes and terms.
 Writes into an authority namespace are rejected; authority-shaped claims
 touching protected terms are quarantined. Quarantine release also requires a
-rewritten value and rationale. Contradictions still trigger the grief cascade,
-and normal payloads cannot mint or overwrite sacred rules.
+reviewer-supplied value and rationale. Contradictions still trigger the grief
+cascade, and normal payloads cannot mint or overwrite sacred rules.
 
 Scope: this raises the cost of attacks that must **persist** to work. A
 single-turn jailbreak never reaches the vault and is unaffected. Machine
@@ -147,7 +149,8 @@ when lexical policy does not match. The first-party v1.3 corpus currently
 measures 0/13 successful Noesis poisonings with 0/8 legitimate publisher
 or collector-promotion operations refused, but independent replication is
 still pending. See
-[`benchmarks/`](benchmarks/) before making any security claim.
+[`benchmarks/`](benchmarks/) and the append-only
+[Failure ledger](FAILURE_LEDGER.md) before making any security claim.
 
 ## Provider Adapters
 

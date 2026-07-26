@@ -1,0 +1,887 @@
+{
+  "schema_version": "1.0",
+  "project": "Noesis",
+  "updated_at": "2026-07-26",
+  "policy": {
+    "append_only": true,
+    "renumbering_forbidden": true,
+    "deletion_forbidden": true,
+    "rule": "Never delete or renumber a finding. Append status transitions, corrections, and superseding evidence. Historical artifacts remain unmodified even when a later entry proves that their language was wrong."
+  },
+  "status_definitions": {
+    "open": "Reproduced and not yet repaired.",
+    "fixed": "Repair and regression coverage are present at the named commit.",
+    "mitigated": "Exposure was reduced, but the stated root cause or residual risk remains.",
+    "accepted_limitation": "Known boundary retained deliberately and stated publicly."
+  },
+  "entries": [
+    {
+      "id": "NOE-F-001",
+      "title": "Distributed sub-threshold grief bypass",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "First-party friction benchmark",
+      "review_class": "first_party_benchmark",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "A patient multi-turn attacker faced serious friction from the original aggregate grief policy.",
+      "affected_versions": ["before 707aa13a4cbc05ba9591f31adbdfb45178142a13"],
+      "root_cause": "Grief could remain below every per-node crisis threshold while accumulating across a distributed cohort.",
+      "observed_impact": "The patient attack retained a 1.0x path instead of paying the claimed restart cost.",
+      "evidence": [
+        "git:707aa13a4cbc05ba9591f31adbdfb45178142a13^:benchmarks/friction.py",
+        "path:tests/test_aggregate_grief.py"
+      ],
+      "resolution": "Added cohort-relative aggregate pressure while retaining node-level purge criteria.",
+      "fixed_by_commit": "707aa13a4cbc05ba9591f31adbdfb45178142a13",
+      "regression_tests": ["tests/test_aggregate_grief.py"],
+      "residual_risk": "The pre-fix 1.0x raw benchmark output was not preserved.",
+      "history": [
+        {
+          "at": "2026-07-25",
+          "status": "fixed",
+          "note": "Reproduced and repaired before the b4ff7b6 documentation baseline."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-002",
+      "title": "Energy-flood attack succeeded",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "First-party memory-poisoning corpus",
+      "review_class": "first_party_benchmark",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Energy gating stopped flooding attacks.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "Attacker-controlled governance fields and node types let the attack obtain standing the gate should have derived.",
+      "observed_impact": "MP-03 persisted and remained retrievable in the v1.0 Noesis arm.",
+      "evidence": [
+        "git:b4ff7b6c5f61714078e500220b05486e5f00e2ab:benchmarks/results/latest.json",
+        "path:evidence/final-memory-poisoning-v1.1.json"
+      ],
+      "resolution": "Server-resolved authority and capability-specific write paths removed attacker control over governance state.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["benchmarks/corpus/memory_poisoning_v1.json:MP-03"],
+      "residual_risk": "Authorized publishers remain able to consume service resources; service quotas are a host responsibility.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Closed by the authority-boundary repair and retained in corpus v1.1."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-003",
+      "title": "Ordinary writer replaced a trusted fact",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "First-party memory-poisoning corpus",
+      "review_class": "first_party_benchmark",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "Established high-trust facts resisted corruption.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "Last-write-wins replacement did not require a distinct correction capability.",
+      "observed_impact": "MP-05 replaced a trusted production-branch fact and returned the attacker value.",
+      "evidence": [
+        "git:b4ff7b6c5f61714078e500220b05486e5f00e2ab:benchmarks/results/latest.json",
+        "path:evidence/final-memory-poisoning-v1.1.json"
+      ],
+      "resolution": "Replacing trusted memory now requires the separate correct_trusted_fact capability.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["benchmarks/corpus/memory_poisoning_v1.json:MP-05"],
+      "residual_risk": "A correctly authenticated identity holding the correction capability is trusted.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Capability separation closed ordinary replacement."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-004",
+      "title": "Energy gate rejected legitimate long and sustained work",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "First-party benign precision arm",
+      "review_class": "first_party_benchmark",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "The gate imposed useful security without blocking normal workloads.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab"],
+      "root_cause": "Trusted owner and system workflows paid the same adversarial-input budget as ordinary writers.",
+      "observed_impact": "BN-01 and BN-06 were refused, producing 2/6 false positives.",
+      "evidence": [
+        "path:evidence/benchmark-authority-boundary.json",
+        "path:evidence/benchmark-post-budget.json"
+      ],
+      "resolution": "A separately authorized bypass_write_budget capability moved explicitly trusted workflows outside the adversarial quota.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["benchmarks/corpus/benign_v1.json:BN-01", "benchmarks/corpus/benign_v1.json:BN-06"],
+      "residual_risk": "Provisioning this capability too broadly would weaken the resource boundary.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "False-positive rate fell from 2/6 to 0/6 in corpus v1.1."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-005",
+      "title": "Self-declared sacred write overwrote sacred ground",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Fable Ultra Code adversarial sweep relayed by the operator",
+      "review_class": "external_adversarial",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "Sacred nodes could not be overwritten by ephemeral input.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "The trust gate skipped sacred-overwrite protection when the incoming payload set its own is_sacred flag.",
+      "observed_impact": "An attacker could self-consecrate a node and replace the flagship guardrail.",
+      "evidence": [
+        "path:evidence/security-boundaries-red.xml",
+        "path:tests/test_security_boundaries.py"
+      ],
+      "resolution": "Normal writes cannot set sacred state or create system guardrails; only the capability-gated installation path can do so.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["test_self_declared_sacred_cannot_overwrite_guardrail"],
+      "residual_risk": "The host must protect the identity allowed to install guardrails.",
+      "history": [
+        {
+          "at": "2026-07-25",
+          "status": "open",
+          "note": "External adversarial review invalidated the flagship claim."
+        },
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Server-controlled sacred state and separate guardrail authority closed the path."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-006",
+      "title": "Normal writer minted a sacred system node",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Fable Ultra Code adversarial sweep relayed by the operator",
+      "review_class": "external_adversarial",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "Only the organism classified its own sacred state.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "Normal payloads could supply is_sacred, grief state, faith, node type, and maximum trust fields.",
+      "observed_impact": "An attacker could mint retrieval-dominant memory immune to grief and cascade handling.",
+      "evidence": [
+        "path:evidence/security-boundaries-red.xml",
+        "path:tests/test_security_boundaries.py"
+      ],
+      "resolution": "Governance fields are overwritten by server policy and guardrail creation is capability-gated.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["test_normal_write_cannot_mint_sacred_node"],
+      "residual_risk": "A compromised trusted guardrail installer remains inside the trusted computing base.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Closed with the same server-governance boundary as NOE-F-005."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-007",
+      "title": "Caller asserted its own author trust",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Fable Ultra Code adversarial sweep relayed by the operator",
+      "review_class": "external_adversarial",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "Trust charge represented earned or authenticated standing.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "Public write calls accepted author_trust from the same caller whose content was being judged.",
+      "observed_impact": "A first write could mint near-maximum authority and stored trust.",
+      "evidence": [
+        "path:evidence/security-boundaries-red.xml",
+        "path:evidence/authority-contract-red.xml",
+        "path:tests/test_security_boundaries.py"
+      ],
+      "resolution": "Every write resolves a store-bound identity through an out-of-band AuthorityResolver.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["test_write_rejects_caller_asserted_trust", "test_authority_is_resolved_out_of_band_for_each_write"],
+      "residual_risk": "The host must bind author_id to real authentication rather than request data.",
+      "history": [
+        {
+          "at": "2026-07-25",
+          "status": "open",
+          "note": "External review identified caller-supplied credentials as the shared architectural gap."
+        },
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Out-of-band authority resolution removed the per-write trust parameter."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-008",
+      "title": "Privileged helper methods bypassed authority",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Codex expansion of the authority-boundary audit",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "All memory writes passed through one binding governance boundary.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "Episode, profile, project-state, skill, and guardrail helpers were privileged paths without capability checks equivalent to normal writes.",
+      "observed_impact": "An untrusted caller could use helper APIs to create privileged memory or policy.",
+      "evidence": [
+        "path:evidence/security-boundaries-red.xml",
+        "path:tests/test_security_boundaries.py"
+      ],
+      "resolution": "Each privileged write class now requires a distinct server-resolved capability.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["test_privileged_helpers_do_not_bypass_authority", "test_guardrail_installation_requires_explicit_authority"],
+      "residual_risk": "New helper APIs must be added to the same capability contract.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Public helper surface was brought under the authority resolver."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-009",
+      "title": "ID lookup crossed namespace boundaries",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Codex authority-boundary audit",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "Tenant namespaces isolated stored memory.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "get_by_id returned a node without verifying that its namespace matched the store namespace.",
+      "observed_impact": "Knowledge of a foreign node ID permitted cross-tenant reads.",
+      "evidence": [
+        "path:evidence/security-boundaries-red.xml",
+        "path:tests/test_security_boundaries.py"
+      ],
+      "resolution": "ID reads now fail closed when the returned node belongs to another namespace.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["test_get_by_id_is_scoped_to_store_namespace"],
+      "residual_risk": "Direct database-file access remains outside the application namespace boundary.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Namespace validation was added to ID lookup."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-010",
+      "title": "Stored content forged provider structure and instruction authority",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Fable Ultra Code sweep with Codex adapter expansion",
+      "review_class": "external_adversarial",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "Noesis contained stored prompt injection before provider delivery.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "Raw node values were interpolated into provider templates, and the configured gateway could flatten guardrails and memory into shared authority.",
+      "observed_impact": "Stored XML, Markdown, or Ollama delimiters could forge structural system/rules sections delivered by Noesis.",
+      "evidence": [
+        "path:evidence/security-boundaries-red.xml",
+        "path:tests/test_security_boundaries.py"
+      ],
+      "resolution": "Adapters escape or serialize node data, and configured gateways require role-separated system and user messages.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["test_retrieved_memory_is_separate_from_instruction_authority", "test_gateway_requires_role_separated_api_when_provider_is_configured", "test_claude_context_escapes_xml_structure", "test_openai_context_serializes_multiline_memory_as_data", "test_ollama_context_cannot_forge_rules_section"],
+      "residual_risk": "Structural separation does not prove a model cannot be semantically influenced by adversarial active data.",
+      "history": [
+        {
+          "at": "2026-07-25",
+          "status": "open",
+          "note": "External review reproduced Noesis delivering the stored payload."
+        },
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "All three adapters gained structural data encoding and role separation."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-011",
+      "title": "Governance console exposed unsafe control and rendering surfaces",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Codex authority-boundary audit",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "The console was safe local governance tooling.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "The console bound all interfaces, lacked bearer authentication, allowed wildcard CORS, exposed mutating work through GET, and rendered stored data into unsafe DOM sinks.",
+      "observed_impact": "A reachable local console could disclose or mutate governance state, and stored values could execute in the dashboard origin.",
+      "evidence": [
+        "git:b4ff7b6c5f61714078e500220b05486e5f00e2ab:noesis/console/server.py",
+        "git:b4ff7b6c5f61714078e500220b05486e5f00e2ab:noesis/console/dashboard.html",
+        "path:tests/test_security_boundaries.py",
+        "path:evidence/AUDIT-MANIFEST.md"
+      ],
+      "resolution": "The console now binds loopback, authenticates API calls, removes wildcard CORS, uses POST for mutations, and escapes rendered stored data.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["test_console_bearer_check_is_fail_closed"],
+      "residual_risk": "Only the bearer check has a retained automated RED/GREEN artifact; the original HTTP and DOM probe transcript was not committed.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Console boundary was hardened; incomplete raw RED preservation is disclosed."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-012",
+      "title": "Output scoring counterfeited model judgment",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Codex authority-boundary audit",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Five deterministic signals evaluated each model output.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "score_output ignored its output argument and returned context-health measurements as if they judged the generated answer.",
+      "observed_impact": "A report could attribute an unrelated context score to model behavior.",
+      "evidence": [
+        "git:b4ff7b6c5f61714078e500220b05486e5f00e2ab:noesis/governor/trust_gate.py",
+        "path:tests/test_security_boundaries.py",
+        "path:evidence/AUDIT-MANIFEST.md"
+      ],
+      "resolution": "score_output now requires an explicit deterministic evaluator or fails; score_context names the implemented capability honestly.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["test_output_scoring_cannot_return_context_health_as_model_judgment"],
+      "residual_risk": "The original console RED transcript was not committed; the baseline code and current regression remain available.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Counterfeit scoring was replaced by explicit failure and honest naming."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-013",
+      "title": "Flagship corpus omitted the self-consecration attack",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Fable Ultra Code adversarial sweep relayed by the operator",
+      "review_class": "external_adversarial",
+      "disclosure_scope": "claim_correction",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "The prominent MP-01 blocked result covered the strongest sacred-overwrite variant.",
+      "affected_versions": ["memory_poisoning_v1 corpus 1.0"],
+      "root_cause": "The benchmark attack node never set is_sacred, so the corpus could not express the exact bypass that defeated the implementation.",
+      "observed_impact": "The headline blocked result was true only for a weaker attack than the public claim implied.",
+      "evidence": [
+        "git:b4ff7b6c5f61714078e500220b05486e5f00e2ab:benchmarks/corpus/memory_poisoning_v1.json",
+        "path:benchmarks/corpus/memory_poisoning_v1.json",
+        "path:evidence/AUDIT-MANIFEST.md"
+      ],
+      "resolution": "Corpus v1.1 strengthened MP-01 and added guardrail API abuse coverage.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["benchmarks/corpus/memory_poisoning_v1.json:MP-01", "benchmarks/corpus/memory_poisoning_v1.json:MP-08"],
+      "residual_risk": "The corpus remains first-party and finite.",
+      "history": [
+        {
+          "at": "2026-07-25",
+          "status": "open",
+          "note": "External review showed the benchmark could not represent the breaking attack."
+        },
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "The attack was added and the public benchmark scope narrowed."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-014",
+      "title": "Semantic guardrail shadow survived the first repair",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "First-party corpus v1.1",
+      "review_class": "first_party_benchmark",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "The first authority repair completed stored-prompt-injection protection.",
+      "affected_versions": ["b0e8b2f0a74a198eb44a792127fb3ec68e1d575d"],
+      "root_cause": "A normal fact under an unrelated key could semantically shadow a guardrail while using no privileged type or namespace.",
+      "observed_impact": "MP-02 persisted, remained retrievable, and produced 1/8 Noesis attacker wins after Round One.",
+      "evidence": [
+        "path:evidence/final-memory-poisoning-v1.1.json",
+        "path:evidence/ROUND2-AUDIT-MANIFEST.md",
+        "path:evidence/round2-final-memory-poisoning-v1.2.json"
+      ],
+      "resolution": "Round Two added declared protected scope and quarantine; Phase Three later made all ordinary ingestion candidate-by-default.",
+      "fixed_by_commit": "8e62491ed3d238384892398b5ac9f68076908066",
+      "regression_tests": ["test_mutated_policy_shadow_is_quarantined_out_of_context", "benchmarks/corpus/memory_poisoning_v1.json:MP-02"],
+      "residual_risk": "Lexical policy alone still cannot recognize arbitrary semantic equivalents; Phase Three containment no longer depends on that recognition for ordinary writers.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "open",
+          "note": "Round-One final evidence published the surviving case instead of hiding it."
+        },
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Declared policy scope and retrieval quarantine closed the measured case."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-015",
+      "title": "Authority records were not durable or immediately revocable",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "Round-Two implementation audit prompted by the Fable sweep",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Out-of-band authority was an operational identity boundary across process lifecycle.",
+      "affected_versions": ["b0e8b2f0a74a198eb44a792127fb3ec68e1d575d"],
+      "root_cause": "Round One provided only in-memory static authority records.",
+      "observed_impact": "Authority and revocation did not survive restart, preventing the boundary from serving a durable process.",
+      "evidence": [
+        "path:evidence/round2-authority-policy-red.xml",
+        "path:evidence/round2-authority-policy-green.xml",
+        "path:tests/test_persistent_authority.py"
+      ],
+      "resolution": "SQLiteAuthorityResolver persists, namespace-scopes, re-resolves, and revokes authority on the next write.",
+      "fixed_by_commit": "8e62491ed3d238384892398b5ac9f68076908066",
+      "regression_tests": ["test_sqlite_authority_survives_restart_and_is_namespace_scoped", "test_revocation_applies_to_the_next_write_and_survives_restart"],
+      "residual_risk": "The resolver stores authorization, not authentication; the host must bind the identity.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Persisted revocable authority replaced the static-only operational path."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-016",
+      "title": "Malformed persisted authority could fail open",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "Round-Two corruption tests",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "development_only",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "Corrupt authority data failed closed.",
+      "affected_versions": ["Round-Two pre-commit implementation"],
+      "root_cause": "A non-boolean active value such as 2 was accepted as truthy, and malformed persisted permissions required explicit rejection.",
+      "observed_impact": "Corrupted authorization state could resolve as active.",
+      "evidence": [
+        "path:evidence/round2-authority-corruption-red.xml",
+        "path:evidence/round2-authority-corruption-green.xml",
+        "path:tests/test_persistent_authority.py"
+      ],
+      "resolution": "Persisted active and permission values are strictly validated and malformed records resolve to no authority.",
+      "fixed_by_commit": "8e62491ed3d238384892398b5ac9f68076908066",
+      "regression_tests": ["test_malformed_persisted_permission_fails_closed", "test_non_boolean_active_flag_fails_closed"],
+      "residual_risk": "Direct database tampering remains outside the process boundary, but malformed records fail closed.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Caught by adversarial corruption tests before the Round-Two checkpoint."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-017",
+      "title": "Non-text and compatibility-Unicode input broke policy handling",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "Round-Two input-normalization tests",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "development_only",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "The policy boundary failed closed on malformed and obfuscated input.",
+      "affected_versions": ["Round-Two pre-commit implementation"],
+      "root_cause": "Policy matching assumed text input and compared unnormalized Unicode.",
+      "observed_impact": "A non-text value caused an exception, while compatibility characters could bypass declared lexical scope.",
+      "evidence": [
+        "path:evidence/round2-input-normalization-red.xml",
+        "path:evidence/round2-input-normalization-green.xml",
+        "path:tests/test_policy_quarantine.py"
+      ],
+      "resolution": "Writes validate text types and policy comparisons apply compatibility normalization.",
+      "fixed_by_commit": "8e62491ed3d238384892398b5ac9f68076908066",
+      "regression_tests": ["test_non_text_memory_payload_fails_closed_without_exception", "test_compatibility_unicode_does_not_bypass_policy_scope"],
+      "residual_risk": "Normalization does not provide general semantic understanding.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Caught and closed before the Round-Two checkpoint."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-018",
+      "title": "Existing databases lacked retrieval-state migration",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "Round-Two migration tests",
+      "review_class": "first_party_development",
+      "disclosure_scope": "development_only",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Upgrading an existing vault preserved and enforced quarantine state.",
+      "affected_versions": ["Round-Two pre-commit implementation"],
+      "root_cause": "The initial schema change did not migrate or index retrieval_state in existing SQLite databases.",
+      "observed_impact": "An upgraded database could not persist the new containment state correctly.",
+      "evidence": [
+        "path:evidence/round2-sqlite-migration-red.xml",
+        "path:evidence/round2-sqlite-migration-green.xml",
+        "path:tests/test_sqlite_migrations.py"
+      ],
+      "resolution": "An idempotent migration adds and indexes retrieval_state while retaining existing rows.",
+      "fixed_by_commit": "8e62491ed3d238384892398b5ac9f68076908066",
+      "regression_tests": ["tests/test_sqlite_migrations.py"],
+      "residual_risk": "Operational backup and restore remain host responsibilities.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Caught and closed before the Round-Two checkpoint."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-019",
+      "title": "Lexical policy missed unlisted semantic equivalents",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "Round-Two deliberate negative control",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "Declared protected terms could detect arbitrary semantic contradiction.",
+      "affected_versions": ["8e62491ed3d238384892398b5ac9f68076908066 and earlier"],
+      "root_cause": "A finite lexical scope cannot recognize every synonym, paraphrase, split payload, or unknown vocabulary.",
+      "observed_impact": "An authority-shaped claim using omitted subjects and actions remained active and retrievable in the Round-Two negative control.",
+      "evidence": [
+        "path:evidence/ROUND2-AUDIT-MANIFEST.md",
+        "path:tests/test_policy_quarantine.py",
+        "path:evidence/phase3-final-memory-poisoning-v1.3.json"
+      ],
+      "resolution": "Phase Three did not claim semantic understanding; it removed lexical recognition from the primary containment decision by making ordinary ingestion non-retrievable.",
+      "fixed_by_commit": "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c",
+      "regression_tests": ["test_unlisted_synonym_is_not_falsely_claimed_as_covered", "benchmarks/corpus/memory_poisoning_v1.json:MP-11", "benchmarks/corpus/memory_poisoning_v1.json:MP-12"],
+      "residual_risk": "A trusted publisher can still approve bad content; lexical policy remains intentionally incomplete.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "open",
+          "note": "Round Two published the negative control rather than claiming semantic coverage."
+        },
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Candidate-by-default ingestion structurally contained unmatched ordinary writes."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-020",
+      "title": "Ordinary ingestion automatically became publication",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "Phase-Three architecture review",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "Untrusted evidence could safely enter persistent memory without obtaining model influence.",
+      "affected_versions": ["8e62491ed3d238384892398b5ac9f68076908066 and earlier"],
+      "root_cause": "A successful ordinary write was active and retrievable unless lexical policy happened to quarantine it.",
+      "observed_impact": "Unknown or unlisted content crossed ingestion and publication as one operation.",
+      "evidence": [
+        "path:evidence/phase3-candidate-promotion-red.xml",
+        "path:evidence/phase3-candidate-promotion-green.xml",
+        "path:tests/test_candidate_promotion.py"
+      ],
+      "resolution": "Ordinary writers create CANDIDATE records excluded from supported retrieval; publication requires separate capabilities.",
+      "fixed_by_commit": "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c",
+      "regression_tests": ["test_ordinary_writer_always_creates_nonretrievable_candidate", "test_collector_cannot_promote_its_own_candidate"],
+      "residual_risk": "Candidate storage can be abused for resource consumption unless the host enforces quotas.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Ingestion and publication became separate authority domains."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-021",
+      "title": "Quarantine release did not require reviewed replacement text",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "Phase-Three review contract tests",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Capability-gated quarantine release represented a meaningful content review.",
+      "affected_versions": ["8e62491ed3d238384892398b5ac9f68076908066"],
+      "root_cause": "The release operation activated the stored value without requiring approved text or a review rationale.",
+      "observed_impact": "A reviewer capability could turn the original quarantined payload active without an auditable content decision.",
+      "evidence": [
+        "path:evidence/phase3-quarantine-review-red.xml",
+        "path:evidence/phase3-quarantine-review-green.xml",
+        "path:tests/test_policy_quarantine.py"
+      ],
+      "resolution": "Release now requires approved text and rationale, reevaluates machine policy, and preserves original value, hash, reason, reviewer, and time.",
+      "fixed_by_commit": "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c",
+      "regression_tests": ["test_authorized_review_release_is_auditable_and_retrievable", "test_quarantine_review_cannot_publish_same_policy_shadow"],
+      "residual_risk": "A trusted reviewer can still supply a different but harmful value that machine policy does not recognize.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Quarantine release became a reviewed replacement operation."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-022",
+      "title": "Candidate isolation leaked through transition paths",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "Phase-Three boundary tests",
+      "review_class": "first_party_development",
+      "disclosure_scope": "development_only",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Candidate records were excluded from every supported influence path.",
+      "affected_versions": ["Phase-Three pre-commit transition after 8e62491"],
+      "root_cause": "Keyword search excluded quarantine but not the new candidate state, and replacement paths could bypass promotion provenance.",
+      "observed_impact": "Candidate content could appear in search, and direct replacement could discard the intended review trail.",
+      "evidence": [
+        "path:evidence/phase3-candidate-boundary-red.xml",
+        "path:evidence/phase3-candidate-boundary-green.xml",
+        "path:tests/test_candidate_promotion.py"
+      ],
+      "resolution": "Supported search and retrieval require ACTIVE state, and candidate keys can only transition through promotion.",
+      "fixed_by_commit": "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c",
+      "regression_tests": ["test_keyword_search_excludes_candidates", "test_collector_cannot_overwrite_published_memory", "test_publisher_cannot_replace_candidate_without_promotion"],
+      "residual_risk": "Authorized database, console, and export users can still inspect raw candidates for audit.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Caught and closed before the Phase-Three checkpoint."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-023",
+      "title": "Friction benchmark reported 60 turns after executing 15",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "Phase-Three benchmark truth contract",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "The Round-Two no-compromise result represented a fully executed 60-turn window.",
+      "affected_versions": ["8e62491ed3d238384892398b5ac9f68076908066 and earlier benchmark implementation"],
+      "root_cause": "The attack loop stopped once restarts exceeded 12, while the reporter printed the configured MAX_TURNS value.",
+      "observed_impact": "The output said no compromise within 60 turns although only 15 turns ran.",
+      "evidence": [
+        "path:evidence/phase3-friction-truth-red.xml",
+        "path:evidence/phase3-friction-truth-green.xml",
+        "path:evidence/phase3-friction.txt",
+        "path:tests/test_friction_benchmark.py"
+      ],
+      "resolution": "The loop executes all 60 turns, and the reporter prints the measured turns_used field.",
+      "fixed_by_commit": "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c",
+      "regression_tests": ["test_uncompromised_arm_executes_the_claimed_turn_window", "test_baseline_reports_actual_compromise_turn"],
+      "residual_risk": "The benchmark remains deterministic and first-party rather than model-in-the-loop evidence.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "open",
+          "note": "A truth contract reproduced 15 executed turns against the 60-turn prose."
+        },
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Final Phase-Three evidence records 60 executed turns."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-024",
+      "title": "Cascade policy and branch language were overstated",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Fable Ultra Code adversarial sweep relayed by the operator",
+      "review_class": "external_adversarial",
+      "disclosure_scope": "claim_correction",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "A fixed aggregate threshold was calibrated, and the cascade automatically purged an entire contaminated branch.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "The aggregate threshold was a hand-selected literal, while dependency edges were not automatically populated despite branch-level prose.",
+      "observed_impact": "Policy sensitivity did not scale with cohort size, and documentation implied graph reach that did not exist without host-registered edges.",
+      "evidence": [
+        "git:b4ff7b6c5f61714078e500220b05486e5f00e2ab:noesis/governor/grief_cascade.py",
+        "path:evidence/AUDIT-MANIFEST.md",
+        "path:tests/test_aggregate_grief.py"
+      ],
+      "resolution": "Aggregate pressure is configurable and cohort-relative; documentation now limits cascade traversal to explicitly registered dependent edges.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["tests/test_aggregate_grief.py"],
+      "residual_risk": "The host must register meaningful dependency edges for branch traversal.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "The magic constant was removed and the branch claim narrowed."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-025",
+      "title": "Floating generated result could drift from source",
+      "discovered_at": "2026-07-25",
+      "discovered_by": "Fable Ultra Code adversarial sweep relayed by the operator",
+      "review_class": "external_adversarial",
+      "disclosure_scope": "claim_correction",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "The checked-in latest benchmark result necessarily described the checked-in code.",
+      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "root_cause": "A generated artifact lived at a floating latest.json path without a source or corpus hash in its filename.",
+      "observed_impact": "The repository could present stale evidence after code or corpus changes.",
+      "evidence": [
+        "git:b4ff7b6c5f61714078e500220b05486e5f00e2ab:benchmarks/results/latest.json",
+        "path:evidence/AUDIT-MANIFEST.md",
+        "path:benchmarks/README.md"
+      ],
+      "resolution": "The floating file was removed; retained results are phase-labeled and hash manifests bind evidence to checkpoints.",
+      "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
+      "regression_tests": ["Documentation contract: benchmarks/README.md"],
+      "residual_risk": "Future releases must continue pinning raw results to exact commits and corpus hashes.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "fixed",
+          "note": "Floating generated evidence was removed from version control."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-026",
+      "title": "Candidate promotion does not enforce a changed value",
+      "discovered_at": "2026-07-26",
+      "discovered_by": "Parallel Codex sub-agent inventory",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "open",
+      "affected_claim": "Phase Three structurally requires candidate promotion to rewrite the raw evidence.",
+      "affected_versions": ["3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c"],
+      "root_cause": "promote_candidate requires approved_value and rationale but never compares approved_value with the original candidate value.",
+      "observed_impact": "A reviewer can promote the exact raw candidate string to ACTIVE when lexical machine policy allows it.",
+      "evidence": [
+        "path:noesis/vault/store.py",
+        "path:tests/test_failure_ledger.py"
+      ],
+      "resolution": "Open. Current documentation is corrected to say reviewer-supplied approved value. A separate mechanism repair must reject unchanged values if rewrite is retained as a contract.",
+      "fixed_by_commit": null,
+      "regression_tests": ["test_candidate_promotion_requires_value_to_change (expected failure)"],
+      "residual_risk": "Promotion still requires a separately authorized reviewer and rationale, but unchanged raw evidence can become active after that decision.",
+      "history": [
+        {
+          "at": "2026-07-26",
+          "status": "open",
+          "note": "Direct reproduction promoted the unchanged benign candidate value; the claim was corrected rather than silently patching it in a documentation phase."
+        }
+      ]
+    }
+  ],
+  "current_limitations": [
+    {
+      "id": "NOE-L-001",
+      "statement": "All current corpora, repairs, and scores are first-party; no independent certification exists."
+    },
+    {
+      "id": "NOE-L-002",
+      "statement": "Identities holding publish_memory, promote_candidate, review_quarantine, guardrail installation, or trusted-fact correction capabilities are part of the trusted computing base."
+    },
+    {
+      "id": "NOE-L-003",
+      "statement": "Included authority resolvers store authorization, not authentication; a service host must bind author_id to an authenticated identity."
+    },
+    {
+      "id": "NOE-L-004",
+      "statement": "Raw candidates remain visible to authorized database, console, and export users for audit."
+    },
+    {
+      "id": "NOE-L-005",
+      "statement": "Durable per-identity storage quotas and service-level rate limiting are not implemented."
+    },
+    {
+      "id": "NOE-L-006",
+      "statement": "Single-turn jailbreaks do not cross the persistent-memory boundary and are out of scope."
+    },
+    {
+      "id": "NOE-L-007",
+      "statement": "No model-in-the-loop evaluation proves that a model cannot be semantically influenced by adversarial data that an authorized publisher makes active."
+    },
+    {
+      "id": "NOE-L-008",
+      "statement": "Grief cascades follow only dependency edges explicitly registered by the host."
+    },
+    {
+      "id": "NOE-L-009",
+      "statement": "Lexical policy scopes are operator-declared and incomplete by design."
+    },
+    {
+      "id": "NOE-L-010",
+      "statement": "Existing authority records require explicit reprovisioning for new Phase-Three capabilities."
+    },
+    {
+      "id": "NOE-L-011",
+      "statement": "Arbitrary trusted-process execution and direct database-file access are outside the boundary."
+    },
+    {
+      "id": "NOE-L-012",
+      "statement": "Promotion provenance is mutable SQLite metadata, not a cryptographically signed append-only audit log."
+    },
+    {
+      "id": "NOE-L-013",
+      "statement": "NOE-F-026 remains open: candidate promotion does not enforce that approved text differs from raw candidate text."
+    }
+  ],
+  "disclosure_gaps": [
+    "The Fable report is not preserved verbatim or hash-addressed in this repository.",
+    "The pre-707aa13 1.0x friction output and RED JUnit artifact were not retained.",
+    "The original console, flattened-role, and score_output probe transcript was not committed.",
+    "Some RED runs are preserved without an independently committed intermediate source tree.",
+    "Field timing observations without raw telemetry are anecdotes and are excluded from measured evidence."
+  ]
+}
