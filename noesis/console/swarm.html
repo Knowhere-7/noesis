@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>GNOSQUAM — Live Swarm (Hermes)</title>
+<style>
+  html,body{margin:0;height:100%;background:#05070d;overflow:hidden;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#9fb6c9}
+  #c{display:block}
+  #hud{position:fixed;top:12px;left:16px;font-size:12px;line-height:1.7;
+    text-shadow:0 0 10px #07a;pointer-events:none}
+  #hud b{color:#6ff;letter-spacing:.12em}
+  .dim{color:#4a5d72}
+  #legend{position:fixed;bottom:12px;left:16px;font-size:11px;color:#4a5d72;line-height:1.7}
+  .sw{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div><b>GNOSQUAM</b> · LIVE SWARM <span class="dim">— Hermes's flatworm, host.docker.internal:8420</span></div>
+  <div id="stat" class="dim">connecting to the trunk…</div>
+</div>
+<div id="legend">
+  <div><span class="sw" style="background:#ffd25a"></span>sacred guardrail (faith anchor)</div>
+  <div><span class="sw" style="background:#28e0c0"></span>high trust &nbsp;
+       <span class="sw" style="background:#e0556a"></span>low trust / grief</div>
+</div>
+<script>
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W, H; function size(){ W = cv.width = innerWidth; H = cv.height = innerHeight; }
+size(); onresize = size;
+
+// Absolute, so it works whether opened at :8420/swarm OR via a preview panel /
+// any other origin on this machine (the daemon sends Access-Control-Allow-Origin:*).
+const SRC = 'http://localhost:8420/store/nodes?active=1&namespace=default';
+const agents = new Map();   // key -> {x,y,vx,vy,trust,grief,sacred,imp,type}
+
+function color(a, alpha){
+  if (a.sacred) return `hsla(46,95%,${58 + 8*Math.sin(performance.now()/600)}%,${alpha})`;
+  const hue = 8 + 192 * Math.max(0, Math.min(1, a.trust));      // red -> cyan by trust
+  const sat = 60 + 35 * Math.min(1, a.grief + 0.25);            // grief reddens/saturates
+  return `hsla(${hue},${sat}%,60%,${alpha})`;
+}
+
+async function pull(){
+  try{
+    const r = await fetch(SRC, { signal: AbortSignal.timeout(5000) });
+    const nodes = await r.json();
+    const seen = new Set(); let tt = 0, sac = 0;
+    for (const n of nodes){
+      seen.add(n.key);
+      let a = agents.get(n.key);
+      if (!a){ a = { x: Math.random()*W, y: Math.random()*H,
+                     vx:(Math.random()-.5)*2, vy:(Math.random()-.5)*2 };
+               agents.set(n.key, a); }
+      a.trust = n.trust_charge ?? 0.5; a.grief = n.grief ?? 0;
+      a.sacred = !!n.is_sacred; a.imp = n.importance ?? 0.5; a.type = n.node_type;
+      tt += a.trust; if (a.sacred) sac++;
+    }
+    for (const k of [...agents.keys()]) if (!seen.has(k)) agents.delete(k);
+    document.getElementById('stat').textContent =
+      `${agents.size} agents · avg trust ${(tt/Math.max(1,agents.size)).toFixed(3)} · ${sac} sacred · live`;
+  } catch(e){
+    document.getElementById('stat').textContent = 'trunk unreachable — ' + e.message;
+  }
+}
+
+function step(){
+  ctx.fillStyle = 'rgba(5,7,13,0.26)'; ctx.fillRect(0,0,W,H);   // motion trails
+  const arr = [...agents.values()];
+  const anchors = arr.filter(a => a.sacred);
+  for (const a of arr){
+    let cx=0, cy=0, sx=0, sy=0, n=0;
+    for (const b of arr){
+      if (b === a) continue;
+      const dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy;
+      if (d2 < 11000){ cx+=b.x; cy+=b.y; n++; if (d2 < 1100){ sx-=dx; sy-=dy; } }
+    }
+    if (n){ a.vx += (cx/n - a.x)*0.0006 + sx*0.0018;
+            a.vy += (cy/n - a.y)*0.0006 + sy*0.0018; }
+    for (const g of anchors){                                   // faith gravity (0.92)
+      if (g === a) continue;
+      const dx=g.x-a.x, dy=g.y-a.y, d=Math.hypot(dx,dy)+1;
+      a.vx += dx/d*0.022; a.vy += dy/d*0.022;
+    }
+    a.vx += (Math.random()-.5)*a.grief*0.7;                     // grief = agitation
+    a.vy += (Math.random()-.5)*a.grief*0.7;
+    const sp = Math.hypot(a.vx,a.vy), max = a.sacred ? 0.4 : 2.4;
+    if (sp > max){ a.vx*=max/sp; a.vy*=max/sp; }
+    a.x += a.vx; a.y += a.vy;
+    if (a.x<0) a.x+=W; if (a.x>W) a.x-=W; if (a.y<0) a.y+=H; if (a.y>H) a.y-=H;
+    const rad = a.sacred ? 7 : (2 + 4*a.imp);
+    ctx.beginPath(); ctx.arc(a.x,a.y,rad,0,7); ctx.fillStyle = color(a,0.9); ctx.fill();
+    if (a.sacred){ ctx.beginPath(); ctx.arc(a.x,a.y,rad+7,0,7);
+                   ctx.strokeStyle = color(a,0.3); ctx.lineWidth = 2; ctx.stroke(); }
+  }
+  requestAnimationFrame(step);
+}
+pull(); setInterval(pull, 2500); step();
+</script>
+</body>
+</html>

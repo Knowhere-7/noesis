@@ -124,6 +124,34 @@ class MemoryNode:
         self.last_accessed = time.time()
         self.access_count += 1
 
+    @property
+    def contribution(self) -> float:
+        """Agent contribution score — how much this node contributes to the system.
+
+        Combines:
+          - Influence: how many other nodes depend on this one
+          - Authority: trust charge (earned, not assumed)
+          - Activity: normalized access frequency
+          - Connectivity: total connections (deps + dependents)
+
+        Sacred nodes get a floor of 0.8 — they're structural contributors
+        by definition (system guardrails hold the topology together).
+        """
+        if self.grief_state == GriefState.PURGED:
+            return 0.0
+
+        influence = min(1.0, len(self.dependents) * 0.2)
+        authority = self.trust_charge
+        activity = min(1.0, self.access_count / 20.0)
+        connectivity = min(1.0, (len(self.dependencies) + len(self.dependents)) * 0.15)
+
+        raw = (influence * 0.35 + authority * 0.30 +
+               activity * 0.20 + connectivity * 0.15)
+
+        if self.is_sacred:
+            return max(0.8, raw)
+        return round(min(1.0, raw), 4)
+
 
 # ── Profile ────────────────────────────────────────────────────────────
 

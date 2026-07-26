@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Flatworm — Memory Graph</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0f; color: #e0e0e0; font-family: 'Courier New', monospace; overflow: hidden; }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 16px; left: 16px;
+    font-size: 11px; color: #555;
+    pointer-events: none; z-index: 10;
+    line-height: 1.8;
+  }
+  #hud span { color: #888; }
+  #legend {
+    position: fixed; bottom: 16px; right: 16px;
+    font-size: 10px; color: #444;
+    pointer-events: none; z-index: 10;
+    text-align: right; line-height: 2;
+  }
+  .legend-dot {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; margin-right: 6px; vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  flatworm // memory graph<br>
+  <span id="node-count">nodes: —</span><br>
+  <span id="fps">fps: —</span><br>
+  <span id="daemon-status">daemon: —</span>
+</div>
+<div id="legend">
+  <div><span class="legend-dot" style="background:#00ffff"></span>high trust</div>
+  <div><span class="legend-dot" style="background:#ff4444"></span>low trust</div>
+  <div><span class="legend-dot" style="background:#ffd700;box-shadow:0 0 6px #ffd700"></span>sacred</div>
+  <div><span class="legend-dot" style="background:#ffffff;opacity:0.3"></span>ephemeral</div>
+</div>
+<script>
+const DAEMON = "";
+const NS     = "default";
+const TICK   = 16;
+const R      = 4;
+const MAX_NODES = 200;
+
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
+let W, H, cx, cy;
+
+function resize() {
+  W = c.width  = window.innerWidth;
+  H = c.height = window.innerHeight;
+  cx = W / 2; cy = H / 2;
+}
+resize();
+window.addEventListener("resize", resize);
+
+let nodes  = [];
+let sacred = [];
+let lastFps = 0, fpsTimer = 0, fpsCount = 0;
+let daemonUp = false;
+
+async function fetchNodes() {
+  try {
+    const r = await fetch(DAEMON + "/store/nodes?active=1&namespace=" + encodeURIComponent(NS));
+    if (!r.ok) throw new Error("bad response");
+    const raw = await r.json();
+    if (!Array.isArray(raw)) throw new Error("not array");
+    daemonUp = true;
+    document.getElementById("daemon-status").textContent = "daemon: up";
+    document.getElementById("daemon-status").style.color = "#0fa";
+
+    const fresh = raw;
+    const existingKeys = new Set(nodes.map(n => n.key));
+    for (const d of fresh) {
+      if (existingKeys.has(d.key)) {
+        const n = nodes.find(x => x.key === d.key);
+        n.trust = d.trust_charge ?? 0.5;
+        n.grief = d.grief ?? 0;
+        n.isSacred = d.is_sacred ?? false;
+        n.importance = d.importance ?? 0.5;
+        n.purged = false;
+      } else {
+        if (nodes.length >= MAX_NODES) break;
+        nodes.push({
+          key: d.key, type: d.node_type,
+          x: cx + (Math.random() - 0.5) * 300,
+          y: cy + (Math.random() - 0.5) * 300,
+          vx: 0, vy: 0,
+          trust: d.trust_charge ?? 0.5,
+          grief: d.grief ?? 0,
+          isSacred: d.is_sacred ?? false,
+          importance: d.importance ?? 0.5,
+          purged: false, fadeOut: 1.0,
+          size: R * (0.5 + (d.importance ?? 0.5)),
+        });
+      }
+    }
+    const freshKeys = new Set(fresh.map(d => d.key));
+    for (const n of nodes) {
+      if (!freshKeys.has(n.key) && !n.purged) n.purged = true;
+    }
+    sacred = nodes.filter(n => n.isSacred).map(n => ({ x: n.x, y: n.y }));
+    document.getElementById("node-count").textContent = "nodes: " + nodes.length;
+  } catch(e) {
+    daemonUp = false;
+    document.getElementById("daemon-status").textContent = "daemon: unreachable";
+    document.getElementById("daemon-status").style.color = "#f44";
+  }
+}
+
+const FAITH = 0.92, COHESION = 0.003, SEPARATION = 0.05;
+const GRIEF_JITTER = 0.3, DAMPING = 0.88, MAX_SPEED = 2.5;
+
+function tick() {
+  for (const n of nodes) {
+    if (n.purged) { n.fadeOut *= 0.92; continue; }
+    let ax = 0, ay = 0;
+
+    let cx2 = 0, cy2 = 0, cnt = 0;
+    for (const o of nodes) { if (o.purged || o === n) continue; cx2 += o.x; cy2 += o.y; cnt++; }
+    if (cnt > 0) { ax += (cx2 / cnt - n.x) * COHESION; ay += (cy2 / cnt - n.y) * COHESION; }
+
+    for (const o of nodes) {
+      if (o === n || o.purged) continue;
+      const dx = n.x - o.x, dy = n.y - o.y;
+      const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+      if (dist < 60) {
+        ax += (dx / dist) * SEPARATION * (60 - dist) / 60;
+        ay += (dy / dist) * SEPARATION * (60 - dist) / 60;
+      }
+    }
+
+    for (const s of sacred) {
+      const dx = s.x - n.x, dy = s.y - n.y;
+      const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+      if (dist > 50) { ax += (dx / dist) * FAITH * 0.01; ay += (dy / dist) * FAITH * 0.01; }
+    }
+
+    ax += (Math.random() - 0.5) * n.grief * GRIEF_JITTER;
+    ay += (Math.random() - 0.5) * n.grief * GRIEF_JITTER;
+
+    n.vx = (n.vx + ax) * DAMPING;
+    n.vy = (n.vy + ay) * DAMPING;
+    const spd = Math.sqrt(n.vx*n.vx + n.vy*n.vy);
+    if (spd > MAX_SPEED) { n.vx = n.vx/spd*MAX_SPEED; n.vy = n.vy/spd*MAX_SPEED; }
+    n.x += n.vx; n.y += n.vy;
+
+    const PAD = 50;
+    if (n.x < PAD) n.vx += 0.3;
+    if (n.x > W-PAD) n.vx -= 0.3;
+    if (n.y < PAD) n.vy += 0.3;
+    if (n.y > H-PAD) n.vy -= 0.3;
+  }
+  nodes = nodes.filter(n => !n.purged || n.fadeOut > 0.01);
+}
+
+function nodeColor(n) {
+  if (n.isSacred) return "#ffd700";
+  const t = Math.max(0, Math.min(1, n.trust));
+  const r = Math.round(255 * (1 - t));
+  const g = Math.round(255 * t * 0.8);
+  const b = Math.round(255 * t);
+  return "rgb(" + r + "," + g + "," + b + ")";
+}
+
+function draw() {
+  ctx.fillStyle = "rgba(10,10,15,0.18)";
+  ctx.fillRect(0, 0, W, H);
+
+  for (const a of nodes) {
+    if (a.purged) continue;
+    for (const b of nodes) {
+      if (b === a || b.purged) continue;
+      const dx = a.x - b.x, dy = a.y - b.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist < 120) {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = "rgba(80,80,100," + ((1 - dist/120) * 0.15) + ")";
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+  }
+
+  for (const n of nodes) {
+    const alpha = n.purged ? n.fadeOut : 1;
+    const col = nodeColor(n);
+    const size = n.size * (n.purged ? n.fadeOut : 1);
+
+    if (n.isSacred && !n.purged) {
+      const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, size * 4);
+      grd.addColorStop(0, "rgba(255,215,0,0.3)");
+      grd.addColorStop(1, "rgba(255,215,0,0)");
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, size * 4, 0, Math.PI*2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+    }
+
+    if (n.grief > 0.3 && !n.purged) {
+      ctx.beginPath();
+      ctx.arc(n.x + (Math.random()-0.5)*n.grief*5, n.y + (Math.random()-0.5)*n.grief*5, size, 0, Math.PI*2);
+      ctx.fillStyle = "rgba(255,60,40," + (n.grief * 0.35) + ")";
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, size, 0, Math.PI*2);
+    ctx.fillStyle = col;
+    ctx.globalAlpha = alpha;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    if ((n.isSacred || n.importance > 0.8) && !n.purged) {
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.font = "9px Courier New";
+      ctx.textAlign = "center";
+      const label = n.key.length > 22 ? n.key.slice(0, 22) + "…" : n.key;
+      ctx.fillText(label, n.x, n.y - size - 5);
+    }
+  }
+
+  fpsCount++;
+  const now = performance.now();
+  if (now - fpsTimer > 1000) {
+    lastFps = fpsCount; fpsCount = 0; fpsTimer = now;
+    document.getElementById("fps").textContent = "fps: " + lastFps;
+  }
+}
+
+let lastFetch = 0;
+async function loop(ts) {
+  if (ts - lastFetch > 2000) { await fetchNodes(); lastFetch = ts; }
+  tick(); draw();
+  setTimeout(() => loop(ts + TICK), TICK);
+}
+
+for (let i = 0; i < 6; i++) {
+  nodes.push({
+    key: "seed:" + i, type: "EPHEMERAL",
+    x: cx + (Math.random()-0.5)*250, y: cy + (Math.random()-0.5)*250,
+    vx: 0, vy: 0, trust: 0.4 + Math.random()*0.3, grief: 0.05,
+    isSacred: false, importance: 0.3, purged: false, fadeOut: 1, size: R * 0.6,
+  });
+}
+
+loop(0);
+</script>
+</body>
+</html>
