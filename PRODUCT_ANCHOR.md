@@ -21,12 +21,12 @@ Developers and teams running persistent AI agents (coding assistants, research a
 Noesis gives your AI agent persistent memory with an immune system. It remembers across sessions, reflects on its own performance, builds skills from repeated failures, and uses swarm-derived governance rules to impose **serious friction** on memory corruption, drift, and memory-persistent attacks.
 
 Friction, not impossibility. In the current first-party corpus, poisoning
-success is 1/8 for Noesis versus 8/8 for the simulated ungoverned baseline;
-legitimate-operation refusals are 0/6. The surviving
-`guardrail_shadow` case is published in [`benchmarks/`](benchmarks/).
-These are development measurements, not independent evidence. **Single-turn
-jailbreaks are out of scope by architecture** — they never touch the memory
-vault.
+success is 0/13 for Noesis versus 13/13 for the simulated ungoverned baseline;
+legitimate publisher and collector-promotion refusals are 0/8. Ordinary writes
+remain non-retrievable candidates until separately authorized review and
+promotion. These are development measurements, not independent evidence.
+**Single-turn jailbreaks are out of scope by architecture** — they never touch
+the memory vault.
 
 ## The Minimum Loop
 
@@ -42,6 +42,8 @@ SESSION START
 
 SESSION ACTIVE
   2. Agent works normally with any model (Claude, GPT, Gemini, Llama, etc.)
+     - Ordinary collector writes remain non-retrievable candidates
+     - Publication requires a separately authorized identity
   3. Noesis monitors retrieval context through 5 internal signals:
      - Continuity: are profile and project-state anchors present?
      - Groundedness: what proportion of retrieved memories are high-trust?
@@ -78,7 +80,7 @@ PERIODIC (every N sessions)
 ## What Is Explicitly Out of Scope (v1)
 
 - Multi-agent swarm coordination (v2 — the substrate is ready but single-agent ships first)
-- Dashboard/GUI (API-first, CLI tools for inspection)
+- Hosted multi-user console (a local inspection console is included)
 - Billing/payments (open-source core, commercial layers later)
 - Model training or fine-tuning (Noesis is inference-time governance, not training)
 - Real-time chat UI (Noesis is middleware, not a chat app)
@@ -87,7 +89,9 @@ PERIODIC (every N sessions)
 
 ## The Swarm Governance Differentiator
 
-Every competitor has memory. Nobody has an immune system.
+Noesis combines memory with explicit integrity-state and authority boundaries.
+The comparison below is a design comparison with a typical ungoverned memory
+library, not a measured benchmark of the named products.
 
 | Feature | LangMem / Mem0 / Zep | Noesis |
 |---------|----------------------|--------|
@@ -97,10 +101,13 @@ Every competitor has memory. Nobody has an immune system.
 | Self-reflection | No | Yes — session autopsy + project retrospective |
 | Skill generation | No | Yes — validated, versioned, shadow-tested |
 | Context-health signals | No | Yes — 5 deterministic retrieval-context signals |
-| Memory corruption defense | No | Yes — server-resolved authority, sacred nodes, grief cascades |
-| Memory-persistent attack friction | No | Yes — measured first-party; semantic shadow poisoning remains (single-turn out of scope) |
+| Memory corruption defense | Varies / not measured here | Yes — persisted authority, candidate publishing, sacred nodes, grief cascades |
+| Memory-persistent attack friction | Not measured here | Yes — first-party development measurement only; single-turn out of scope |
 
-The governance rules are not theoretical. They were derived from a live simulation (Murmuration) where 236 agents evolved to a stable consensus state over 54,000 ticks of autonomous operation — that is the mechanism's provenance. Their effect on a real memory layer is measured separately in `benchmarks/`, including the cases that still fail.
+The governance mechanisms were derived from a Murmuration simulation where
+236 agents reached a stable consensus state over 54,000 ticks. That is design
+provenance, not evidence about language-model security. Effects on this memory
+layer are measured separately in `benchmarks/`.
 
 ---
 
@@ -130,19 +137,22 @@ The governance rules are not theoretical. They were derived from a live simulati
 │  └────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────┘
                        │
-              PostgreSQL + pgvector
-              (SQLite for local-first)
+              SQLite (implemented)
+              PostgreSQL + pgvector (future)
 ```
 
 ---
 
-## Monetization Path
+## Proposed Monetization Path
+
+This table is planning, not a current offer. Licensing and prices are not
+finalized.
 
 | Tier | Target | Features | Price |
 |------|--------|----------|-------|
-| **Open Source** | Solo devs | Core engine, SQLite, CLI, local reflection | Free |
-| **Pro** | Teams | Postgres, namespaces, shared skills, API access | $29/seat/mo |
-| **Enterprise** | Orgs | On-prem, audit trails, policy controls, SSO, SLA | Custom |
+| **Local Core** | Solo devs | Core engine, SQLite, CLI, local reflection | TBD |
+| **Team** | Teams | Postgres, namespaces, shared skills, API access | TBD |
+| **Enterprise** | Orgs | On-prem, audit trails, policy controls, SSO, SLA | TBD |
 
 ---
 
@@ -176,5 +186,5 @@ The governance rules are not theoretical. They were derived from a live simulati
 
 ---
 
-*The simulation proved the rules. Now the rules become the product.*
+*The simulation inspired the mechanisms. Tests measure the implementation.*
 *Murmuration → Noesis. From watching the swarm to being the swarm.*

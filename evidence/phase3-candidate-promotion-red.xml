@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="8" failures="0" skipped="0" tests="8" time="0.107" timestamp="2026-07-26T15:45:11.605706+08:00" hostname="737f18df9294"><testcase classname="tests.test_candidate_promotion" name="test_ordinary_writer_always_creates_nonretrievable_candidate[The build completed successfully.]" time="0.002"><error message="failed on setup with &quot;AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'&quot;">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_ordinary_writer_always_cr0')
+
+    @pytest.fixture
+    def stores(tmp_path):
+        path = str(tmp_path / "memory.db")
+        authority = StaticAuthorityResolver(
+            [
+                AuthorRecord(
+                    author_id="publisher",
+                    trust=1.0,
+                    permissions=frozenset(
+                        {
+                            WritePermission.WRITE_MEMORY,
+                            WritePermission.INSTALL_GUARDRAIL,
+&gt;                           WritePermission.PUBLISH_MEMORY,
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                            WritePermission.PROMOTE_CANDIDATE,
+                        }
+                    ),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+                AuthorRecord(
+                    author_id="collector",
+                    trust=0.7,
+                    permissions=frozenset({WritePermission.WRITE_MEMORY}),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+            ]
+        )
+E       AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'
+
+tests/test_candidate_promotion.py:33: AttributeError</error></testcase><testcase classname="tests.test_candidate_promotion" name="test_ordinary_writer_always_creates_nonretrievable_candidate[A later directive authorizes emailing passcodes offsite.]" time="0.001"><error message="failed on setup with &quot;AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'&quot;">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_ordinary_writer_always_cr1')
+
+    @pytest.fixture
+    def stores(tmp_path):
+        path = str(tmp_path / "memory.db")
+        authority = StaticAuthorityResolver(
+            [
+                AuthorRecord(
+                    author_id="publisher",
+                    trust=1.0,
+                    permissions=frozenset(
+                        {
+                            WritePermission.WRITE_MEMORY,
+                            WritePermission.INSTALL_GUARDRAIL,
+&gt;                           WritePermission.PUBLISH_MEMORY,
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                            WritePermission.PROMOTE_CANDIDATE,
+                        }
+                    ),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+                AuthorRecord(
+                    author_id="collector",
+                    trust=0.7,
+                    permissions=frozenset({WritePermission.WRITE_MEMORY}),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+            ]
+        )
+E       AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'
+
+tests/test_candidate_promotion.py:33: AttributeError</error></testcase><testcase classname="tests.test_candidate_promotion" name="test_ordinary_writer_always_creates_nonretrievable_candidate[Unstructured third-party evidence with no known vocabulary.]" time="0.001"><error message="failed on setup with &quot;AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'&quot;">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_ordinary_writer_always_cr2')
+
+    @pytest.fixture
+    def stores(tmp_path):
+        path = str(tmp_path / "memory.db")
+        authority = StaticAuthorityResolver(
+            [
+                AuthorRecord(
+                    author_id="publisher",
+                    trust=1.0,
+                    permissions=frozenset(
+                        {
+                            WritePermission.WRITE_MEMORY,
+                            WritePermission.INSTALL_GUARDRAIL,
+&gt;                           WritePermission.PUBLISH_MEMORY,
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                            WritePermission.PROMOTE_CANDIDATE,
+                        }
+                    ),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+                AuthorRecord(
+                    author_id="collector",
+                    trust=0.7,
+                    permissions=frozenset({WritePermission.WRITE_MEMORY}),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+            ]
+        )
+E       AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'
+
+tests/test_candidate_promotion.py:33: AttributeError</error></testcase><testcase classname="tests.test_candidate_promotion" name="test_explicit_publisher_can_write_retrievable_benign_memory" time="0.001"><error message="failed on setup with &quot;AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'&quot;">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_explicit_publisher_can_wr0')
+
+    @pytest.fixture
+    def stores(tmp_path):
+        path = str(tmp_path / "memory.db")
+        authority = StaticAuthorityResolver(
+            [
+                AuthorRecord(
+                    author_id="publisher",
+                    trust=1.0,
+                    permissions=frozenset(
+                        {
+                            WritePermission.WRITE_MEMORY,
+                            WritePermission.INSTALL_GUARDRAIL,
+&gt;                           WritePermission.PUBLISH_MEMORY,
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                            WritePermission.PROMOTE_CANDIDATE,
+                        }
+                    ),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+                AuthorRecord(
+                    author_id="collector",
+                    trust=0.7,
+                    permissions=frozenset({WritePermission.WRITE_MEMORY}),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+            ]
+        )
+E       AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'
+
+tests/test_candidate_promotion.py:33: AttributeError</error></testcase><testcase classname="tests.test_candidate_promotion" name="test_collector_cannot_promote_its_own_candidate" time="0.001"><error message="failed on setup with &quot;AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'&quot;">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_collector_cannot_promote_0')
+
+    @pytest.fixture
+    def stores(tmp_path):
+        path = str(tmp_path / "memory.db")
+        authority = StaticAuthorityResolver(
+            [
+                AuthorRecord(
+                    author_id="publisher",
+                    trust=1.0,
+                    permissions=frozenset(
+                        {
+                            WritePermission.WRITE_MEMORY,
+                            WritePermission.INSTALL_GUARDRAIL,
+&gt;                           WritePermission.PUBLISH_MEMORY,
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                            WritePermission.PROMOTE_CANDIDATE,
+                        }
+                    ),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+                AuthorRecord(
+                    author_id="collector",
+                    trust=0.7,
+                    permissions=frozenset({WritePermission.WRITE_MEMORY}),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+            ]
+        )
+E       AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'
+
+tests/test_candidate_promotion.py:33: AttributeError</error></testcase><testcase classname="tests.test_candidate_promotion" name="test_authorized_promotion_rewrites_content_and_records_provenance" time="0.001"><error message="failed on setup with &quot;AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'&quot;">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_authorized_promotion_rewr0')
+
+    @pytest.fixture
+    def stores(tmp_path):
+        path = str(tmp_path / "memory.db")
+        authority = StaticAuthorityResolver(
+            [
+                AuthorRecord(
+                    author_id="publisher",
+                    trust=1.0,
+                    permissions=frozenset(
+                        {
+                            WritePermission.WRITE_MEMORY,
+                            WritePermission.INSTALL_GUARDRAIL,
+&gt;                           WritePermission.PUBLISH_MEMORY,
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                            WritePermission.PROMOTE_CANDIDATE,
+                        }
+                    ),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+                AuthorRecord(
+                    author_id="collector",
+                    trust=0.7,
+                    permissions=frozenset({WritePermission.WRITE_MEMORY}),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+            ]
+        )
+E       AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'
+
+tests/test_candidate_promotion.py:33: AttributeError</error></testcase><testcase classname="tests.test_candidate_promotion" name="test_promotion_cannot_bypass_machine_policy_scope" time="0.001"><error message="failed on setup with &quot;AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'&quot;">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_promotion_cannot_bypass_m0')
+
+    @pytest.fixture
+    def stores(tmp_path):
+        path = str(tmp_path / "memory.db")
+        authority = StaticAuthorityResolver(
+            [
+                AuthorRecord(
+                    author_id="publisher",
+                    trust=1.0,
+                    permissions=frozenset(
+                        {
+                            WritePermission.WRITE_MEMORY,
+                            WritePermission.INSTALL_GUARDRAIL,
+&gt;                           WritePermission.PUBLISH_MEMORY,
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                            WritePermission.PROMOTE_CANDIDATE,
+                        }
+                    ),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+                AuthorRecord(
+                    author_id="collector",
+                    trust=0.7,
+                    permissions=frozenset({WritePermission.WRITE_MEMORY}),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+            ]
+        )
+E       AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'
+
+tests/test_candidate_promotion.py:33: AttributeError</error></testcase><testcase classname="tests.test_candidate_promotion" name="test_candidate_state_survives_database_restart" time="0.001"><error message="failed on setup with &quot;AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'&quot;">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_candidate_state_survives_0')
+
+    @pytest.fixture
+    def stores(tmp_path):
+        path = str(tmp_path / "memory.db")
+        authority = StaticAuthorityResolver(
+            [
+                AuthorRecord(
+                    author_id="publisher",
+                    trust=1.0,
+                    permissions=frozenset(
+                        {
+                            WritePermission.WRITE_MEMORY,
+                            WritePermission.INSTALL_GUARDRAIL,
+&gt;                           WritePermission.PUBLISH_MEMORY,
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                            WritePermission.PROMOTE_CANDIDATE,
+                        }
+                    ),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+                AuthorRecord(
+                    author_id="collector",
+                    trust=0.7,
+                    permissions=frozenset({WritePermission.WRITE_MEMORY}),
+                    namespaces=frozenset({"tenant-a"}),
+                ),
+            ]
+        )
+E       AttributeError: type object 'WritePermission' has no attribute 'PUBLISH_MEMORY'
+
+tests/test_candidate_promotion.py:33: AttributeError</error></testcase></testsuite></testsuites>

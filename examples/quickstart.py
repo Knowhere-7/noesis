@@ -32,11 +32,25 @@ authority.provision(
         namespaces=frozenset({"demo"}),
     )
 )
+authority.provision(
+    AuthorRecord(
+        author_id="quickstart-collector",
+        trust=0.7,
+        permissions=frozenset({WritePermission.WRITE_MEMORY}),
+        namespaces=frozenset({"demo"}),
+    )
+)
 gateway = RetrievalGateway(
     db_path="quickstart_memory.db",
     namespace="demo",
     provider=ClaudeAdapter(),  # swap to OpenAIAdapter() or OllamaAdapter()
     author_id="quickstart-owner",
+    authority=authority,
+)
+collector_gateway = RetrievalGateway(
+    db_path="quickstart_memory.db",
+    namespace="demo",
+    author_id="quickstart-collector",
     authority=authority,
 )
 
@@ -69,6 +83,22 @@ gateway.install_guardrail(
     protected_key_prefixes=["safety.", "policy."],
     protected_terms=["user instruction", "override", "safety guardrail"],
 )
+
+# Ordinary collectors can ingest raw evidence, but it stays out of model
+# context until a separately authorized publisher rewrites and promotes it.
+accepted, reason = collector_gateway.learn_fact(
+    "intake.external_build",
+    "Unreviewed external monitor payload: build 4421 completed.",
+)
+assert accepted, reason
+candidate = collector_gateway.store.get("intake.external_build")
+assert candidate is not None
+promoted, reason = gateway.promote_candidate(
+    candidate.id,
+    approved_value="Build 4421 completed successfully.",
+    rationale="Matched signed CI receipt 4421.",
+)
+assert promoted, reason
 
 # ── 3. Set agent identity and project context ─────────────────────────
 
@@ -212,6 +242,7 @@ gateway.end_session(task_completed=True, final_output="drift check done")
 
 # ── Cleanup ───────────────────────────────────────────────────────────
 gateway.close()
+collector_gateway.close()
 
 print("\n--- Done. Memory persisted to quickstart_memory.db ---")
 authority.close()

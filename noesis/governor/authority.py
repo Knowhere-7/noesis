@@ -35,6 +35,8 @@ class WritePermission(str, Enum):
     CORRECT_TRUSTED_FACT = "correct_trusted_fact"
     BYPASS_WRITE_BUDGET = "bypass_write_budget"
     REVIEW_QUARANTINE = "review_quarantine"
+    PUBLISH_MEMORY = "publish_memory"
+    PROMOTE_CANDIDATE = "promote_candidate"
 
 
 @dataclass(frozen=True)

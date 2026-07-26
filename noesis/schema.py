@@ -60,6 +60,7 @@ class GriefState(Enum):
 class RetrievalState(Enum):
     """Whether a stored node may cross the provider-context boundary."""
     ACTIVE = auto()
+    CANDIDATE = auto()
     QUARANTINED = auto()
 
 
@@ -113,6 +114,8 @@ class MemoryNode:
     grief_state: GriefState = GriefState.ACTIVE
     is_sacred: bool = False         # immutable if True
     retrieval_state: RetrievalState = RetrievalState.ACTIVE
+    candidate_reason: Optional[str] = None
+    candidate_at: Optional[float] = None
     quarantine_reason: Optional[str] = None
     quarantined_at: Optional[float] = None
 

@@ -16,7 +16,7 @@ provenance, not security evidence for language models.
 | Agent repeats the same mistakes | Session autopsy + project retrospective detect patterns |
 | Agent can't learn new behaviors | Skill Forge generates procedural memory from recurring failures |
 | Agent context degrades across sessions | 5 deterministic retrieval-context health signals |
-| *Stored* prompt injection (persisted across sessions) | Persisted identity, machine policy scopes, retrieval quarantine, and role-separated provider messages |
+| *Stored* prompt injection (persisted across sessions) | Candidate-by-default ingestion, authorized publishing, policy quarantine, and role-separated provider messages |
 | Contradictions poison the context | Grief cascade evaluates contaminated nodes and registered dependency edges |
 | Vendor lock-in | Claude, GPT, Ollama adapters. Swap providers without losing memory. |
 
@@ -116,7 +116,8 @@ Every memory node carries biological state:
 - **grief** — contamination signal `[0, 1]`. Contradictions accumulate grief.
 - **faith** — alignment to core principles `[0, 1]`. Dampens grief by up to 45%.
 - **is_sacred** — server-controlled immutable flag. Normal memory payloads cannot set it.
-- **retrieval_state** — active or quarantined. Quarantined records remain auditable but cannot enter provider context.
+- **retrieval_state** — active, candidate, or quarantined. Candidates and
+  quarantined records remain auditable but cannot enter provider context.
 
 When grief hits crisis threshold (0.9), the **grief cascade** fires:
 1. Evaluates seppuku criteria (2 of 3: low trust, no healthy deps, high grief)
@@ -124,23 +125,29 @@ When grief hits crisis threshold (0.9), the **grief cascade** fires:
 3. Purged nodes redistribute trust to healthy neighbors
 4. The triggering node and any explicitly registered contaminated dependents are evaluated before context is generated
 
-This imposes deterministic controls on *memory-persistent* attacks. Adversarial
-writes are governed by persisted, revocable identity and capabilities.
-Guardrail owners declare protected key prefixes and terms. Writes into an
-authority namespace are rejected; authority-shaped claims touching protected
-terms are retained in quarantine but excluded from provider context.
-Contradictions still trigger the grief cascade, and normal memory payloads
-cannot mint or overwrite sacred rules.
+This imposes deterministic controls on *memory-persistent* attacks. An identity
+with ordinary write authority may ingest evidence, but the record stays a
+non-retrievable candidate. Only an identity with `publish_memory` may write
+directly into model context, and candidate promotion requires the separate
+`promote_candidate` capability, a rewritten approved value, and a review
+rationale. The raw candidate is preserved in audit metadata and never enters
+provider messages.
+
+Guardrail owners may additionally declare protected key prefixes and terms.
+Writes into an authority namespace are rejected; authority-shaped claims
+touching protected terms are quarantined. Quarantine release also requires a
+rewritten value and rationale. Contradictions still trigger the grief cascade,
+and normal payloads cannot mint or overwrite sacred rules.
 
 Scope: this raises the cost of attacks that must **persist** to work. A
 single-turn jailbreak never reaches the vault and is unaffected. Machine
 policy scopes are operator-declared; an omitted term is not magically
-understood. The test suite preserves an explicit negative control showing that
-an unlisted synonym remains retrievable. The first-party v1.2 corpus currently
-measures 0/10 successful
-Noesis poisonings with 0/7 legitimate operations refused, but independent
-replication is still pending. See [`benchmarks/`](benchmarks/) before making
-any security claim.
+understood. Candidate-by-default ingestion supplies the structural containment
+when lexical policy does not match. The first-party v1.3 corpus currently
+measures 0/13 successful Noesis poisonings with 0/8 legitimate publisher
+or collector-promotion operations refused, but independent replication is
+still pending. See
+[`benchmarks/`](benchmarks/) before making any security claim.
 
 ## Provider Adapters
 
@@ -184,11 +191,11 @@ noesis console --db prod.db --port 9000
 python -m noesis.console --db prod.db
 ```
 
-Shows: vault statistics, quarantine count/reasons, node list with
+Shows: vault statistics, candidate/quarantine counts and reasons, node list with
 trust/grief/state bars, context-health signals, cascade log, and retrospective
 results. Interactive controls trigger grief cascades, trust decay, and
-retrospectives. Quarantine release requires the separate
-`review_quarantine` capability through the host API.
+retrospectives. Candidate promotion and quarantine release require separate
+capabilities through the host API.
 
 Core Noesis does not claim to judge model output. `score_output()` requires an
 explicit deterministic evaluator and otherwise raises; `score_context()` is

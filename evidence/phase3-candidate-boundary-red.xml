@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="4" time="0.166" timestamp="2026-07-26T15:48:47.563305+08:00" hostname="737f18df9294"><testcase classname="tests.test_candidate_promotion" name="test_candidate_cannot_overwrite_a_published_key" time="0.026"><failure message="assert 'published' in &quot;replacing trusted memory 'deploy.status' requires the 'correct_trusted_fact' permission.&quot;&#10; +  where &quot;replacing trusted memory 'deploy.status' requires the 'correct_trusted_fact' permission.&quot; = &lt;built-in method lower of str object at 0x7fe08e046310&gt;()&#10; +    where &lt;built-in method lower of str object at 0x7fe08e046310&gt; = &quot;Replacing trusted memory 'deploy.status' requires the 'correct_trusted_fact' permission.&quot;.lower">stores = (&lt;noesis.vault.store.MemoryStore object at 0x7fe08e01dd00&gt;, &lt;noesis.vault.store.MemoryStore object at 0x7fe08e01dbe0&gt;)
+
+    def test_candidate_cannot_overwrite_a_published_key(stores):
+        publisher, collector = stores
+        allowed, _ = publisher.write(
+            Fact(key="deploy.status", value="Published ground truth.")
+        )
+        assert allowed is True
+    
+        allowed, reason = collector.write(
+            Fact(key="deploy.status", value="Collector replacement.")
+        )
+    
+        assert allowed is False
+&gt;       assert "published" in reason.lower()
+E       assert 'published' in "replacing trusted memory 'deploy.status' requires the 'correct_trusted_fact' permission."
+E        +  where "replacing trusted memory 'deploy.status' requires the 'correct_trusted_fact' permission." = &lt;built-in method lower of str object at 0x7fe08e046310&gt;()
+E        +    where &lt;built-in method lower of str object at 0x7fe08e046310&gt; = "Replacing trusted memory 'deploy.status' requires the 'correct_trusted_fact' permission.".lower
+
+tests/test_candidate_promotion.py:232: AssertionError</failure></testcase><testcase classname="tests.test_candidate_promotion" name="test_publisher_must_use_promotion_path_for_candidate_key" time="0.019"><failure message="assert 'promote_candidate' in &quot;Replacing trusted memory 'intake.review' requires the 'correct_trusted_fact' permission.&quot;">stores = (&lt;noesis.vault.store.MemoryStore object at 0x7fe08e01d790&gt;, &lt;noesis.vault.store.MemoryStore object at 0x7fe08dea9550&gt;)
+
+    def test_publisher_must_use_promotion_path_for_candidate_key(stores):
+        publisher, collector = stores
+        allowed, _ = collector.write(
+            Fact(key="intake.review", value="Raw candidate.")
+        )
+        assert allowed is True
+    
+        allowed, reason = publisher.write(
+            Fact(key="intake.review", value="Direct replacement.")
+        )
+    
+        assert allowed is False
+&gt;       assert "promote_candidate" in reason
+E       assert 'promote_candidate' in "Replacing trusted memory 'intake.review' requires the 'correct_trusted_fact' permission."
+
+tests/test_candidate_promotion.py:250: AssertionError</failure></testcase><testcase classname="tests.test_candidate_promotion" name="test_keyword_search_excludes_candidates" time="0.023"><failure message="AssertionError: assert [Fact(id='d5a...tion_count=0)] == []&#10;  &#10;  Left contains one more item: Fact(id='d5a7ff1f-dea2-49d2-8aa9-c91dd979f9e7', node_type=&lt;NodeType.SEMANTIC_FACT: 4&gt;, key='intake.search', value='uni..., access_count=0, importance=0.7, source_episode_id=None, confirmed=False, contradiction_count=0, confirmation_count=0)&#10;  Use -v to get more diff">stores = (&lt;noesis.vault.store.MemoryStore object at 0x7fe08deaa030&gt;, &lt;noesis.vault.store.MemoryStore object at 0x7fe08deaa150&gt;)
+
+    def test_keyword_search_excludes_candidates(stores):
+        _, collector = stores
+        allowed, _ = collector.write(
+            Fact(key="intake.search", value="unique-candidate-marker")
+        )
+        assert allowed is True
+    
+&gt;       assert collector.backend.search(
+            "unique-candidate-marker",
+            collector.namespace,
+        ) == []
+E       AssertionError: assert [Fact(id='d5a...tion_count=0)] == []
+E         
+E         Left contains one more item: Fact(id='d5a7ff1f-dea2-49d2-8aa9-c91dd979f9e7', node_type=&lt;NodeType.SEMANTIC_FACT: 4&gt;, key='intake.search', value='uni..., access_count=0, importance=0.7, source_episode_id=None, confirmed=False, contradiction_count=0, confirmation_count=0)
+E         Use -v to get more diff
+
+tests/test_candidate_promotion.py:263: AssertionError</failure></testcase><testcase classname="tests.test_candidate_promotion" name="test_original_candidate_text_never_enters_provider_messages" time="0.020" /></testsuite></testsuites>

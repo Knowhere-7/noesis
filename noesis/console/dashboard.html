@@ -78,8 +78,8 @@
             <span id="stat-sacred" class="text-lg font-bold text-purple-400">—</span>
         </div>
         <div class="bg-slate-950/40 border border-slate-900 p-3 rounded-lg panel-glow">
-            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">Quarantined</span>
-            <span id="stat-quarantine" class="text-lg font-bold text-red-400">—</span>
+            <span class="text-[10px] text-slate-500 uppercase tracking-wider block">Candidate / Quarantine</span>
+            <span class="text-lg font-bold"><span id="stat-candidate" class="text-amber-400">—</span><span class="text-slate-600"> / </span><span id="stat-quarantine" class="text-red-400">—</span></span>
         </div>
         <div class="bg-slate-950/40 border border-slate-900 p-3 rounded-lg panel-glow">
             <span class="text-[10px] text-slate-500 uppercase tracking-wider block">Skills Active</span>
@@ -116,6 +116,7 @@
                 <select id="filter-retrieval" class="bg-slate-950/80 border border-slate-800 text-xs text-slate-300 px-2 py-1 rounded cursor-pointer focus:border-teal-600 focus:outline-none">
                     <option value="">All Retrieval</option>
                     <option value="ACTIVE">Retrievable</option>
+                    <option value="CANDIDATE">Candidate</option>
                     <option value="QUARANTINED">Quarantined</option>
                 </select>
                 <span id="node-count" class="text-[10px] text-slate-600 ml-auto"></span>
@@ -381,6 +382,7 @@ async function loadStats() {
         $('stat-total').textContent = s.total_nodes;
         $('stat-trust').textContent = (s.avg_trust || 0).toFixed(3);
         $('stat-energy').textContent = (s.session_energy || 0).toFixed(1);
+        $('stat-candidate').textContent = s.candidate_nodes || 0;
         $('stat-quarantine').textContent = s.quarantined_nodes || 0;
         $('stat-namespace').textContent = s.namespace || '—';
         $('poll-status').textContent = 'last poll: ' + new Date().toLocaleTimeString();
@@ -457,6 +459,7 @@ async function loadNodes() {
                 <td class="px-3 py-2 text-purple-400">${n.faith.toFixed(2)}</td>
                 <td class="px-3 py-2">
                     <span class="text-[10px] px-1.5 py-0.5 rounded border font-bold uppercase ${stateColor(n.state)} ${stateBg(n.state)}">${escapeHtml(n.state)}</span>
+                    ${n.retrieval_state === 'CANDIDATE' ? '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-amber-700/50 text-amber-400">CANDIDATE</span>' : ''}
                     ${n.retrieval_state === 'QUARANTINED' ? '<span class="ml-1 text-[10px] px-1.5 py-0.5 rounded border border-red-700/50 text-red-400">QUARANTINED</span>' : ''}
                 </td>
                 <td class="px-3 py-2 text-center">${n.sacred ? '<span class="text-purple-400" title="Sacred — immutable">&#9733;</span>' : ''}</td>
@@ -481,12 +484,14 @@ async function showDetail(key) {
         $('detail-key').textContent = n.key;
         $('detail-type').textContent = n.type
             + (n.sacred ? ' ★ SACRED' : '')
+            + (n.retrieval_state === 'CANDIDATE' ? ' ◇ CANDIDATE' : '')
             + (n.retrieval_state === 'QUARANTINED' ? ' ⚠ QUARANTINED' : '');
         $('detail-trust').textContent = n.trust.toFixed(4);
         $('detail-grief').textContent = n.grief.toFixed(4);
         $('detail-faith').textContent = n.faith.toFixed(4);
         $('detail-importance').textContent = n.importance.toFixed(4);
         $('detail-value').textContent = (n.value || '(empty)')
+            + (n.candidate_reason ? '\n\nCANDIDATE: ' + n.candidate_reason : '')
             + (n.quarantine_reason ? '\n\nQUARANTINE: ' + n.quarantine_reason : '');
         $('detail-accesses').textContent = n.access_count;
         $('detail-created').textContent = fmtTime(n.created_at);

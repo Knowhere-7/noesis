@@ -168,6 +168,7 @@ def _cmd_stats(gw: RetrievalGateway):
     stats = gw.get_stats()
     print("=== Noesis Vault Statistics ===")
     print(f"Total nodes:     {stats['total_nodes']}")
+    print(f"Candidates:      {stats['candidate_nodes']}")
     print(f"Quarantined:     {stats['quarantined_nodes']}")
     print(f"Avg trust:       {stats['avg_trust']:.3f}")
     print(f"Session energy:  {stats['session_energy']:.1f}")
@@ -222,6 +223,8 @@ def _cmd_get(gw: RetrievalGateway, key: str):
     print(f"Faith:        {node.faith:.3f}")
     print(f"State:        {node.grief_state.name}")
     print(f"Retrieval:    {node.retrieval_state.name}")
+    if node.candidate_reason:
+        print(f"Candidate:    {node.candidate_reason}")
     if node.quarantine_reason:
         print(f"Quarantine:   {node.quarantine_reason}")
     print(f"Sacred:       {node.is_sacred}")

@@ -8,6 +8,7 @@ the interface works.
 
 from __future__ import annotations
 
+import hashlib
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -119,6 +120,28 @@ class MemoryStore:
             return False, reason
 
         self._apply_server_governance(node, author)
+        can_publish = author.permits(
+            WritePermission.PUBLISH_MEMORY,
+            self.namespace,
+        )
+        existing = self.backend.get_by_key(node.key, self.namespace)
+        if existing is not None:
+            if existing.retrieval_state == RetrievalState.CANDIDATE:
+                return False, (
+                    f"Key '{node.key}' is an existing candidate. Use "
+                    "promote_candidate() so review provenance is preserved."
+                )
+            if existing.retrieval_state == RetrievalState.QUARANTINED:
+                return False, (
+                    f"Key '{node.key}' is quarantined and cannot be replaced "
+                    "through the normal write path."
+                )
+            if not can_publish:
+                return False, (
+                    f"Collector cannot replace published memory '{node.key}'. "
+                    "Submit evidence under a new candidate key."
+                )
+
         decision = PolicyBoundary.evaluate(node, self._installed_guardrails())
         if decision.action == "reject":
             return False, (
@@ -136,6 +159,17 @@ class MemoryStore:
             node.quarantine_reason = decision.reason
             node.quarantined_at = time.time()
             reason = f"Write quarantined from retrieval. {decision.reason}"
+        elif not can_publish:
+            node.retrieval_state = RetrievalState.CANDIDATE
+            node.candidate_reason = (
+                f"Author '{author.author_id}' may ingest memory but lacks "
+                f"'{WritePermission.PUBLISH_MEMORY.value}' authority."
+            )
+            node.candidate_at = time.time()
+            reason = (
+                "Write stored as a non-retrievable candidate pending "
+                "authorized promotion."
+            )
 
         self.backend.upsert(node)
         return True, reason
@@ -261,6 +295,8 @@ class MemoryStore:
         node.is_sacred = False
         node.grief_state = GriefState.ACTIVE
         node.retrieval_state = RetrievalState.ACTIVE
+        node.candidate_reason = None
+        node.candidate_at = None
         node.quarantine_reason = None
         node.quarantined_at = None
         node.trust_charge = TrustGate.TRUST_FLOOR
@@ -304,8 +340,88 @@ class MemoryStore:
             if node.retrieval_state == RetrievalState.QUARANTINED
         ]
 
-    def release_quarantined(self, node_id: str) -> Tuple[bool, str]:
-        """Release one quarantined node after an authorized human review."""
+    def candidate_nodes(self) -> List[MemoryNode]:
+        """Return namespace-scoped evidence awaiting authorized promotion."""
+        return [
+            node for node in self.all_nodes()
+            if node.retrieval_state == RetrievalState.CANDIDATE
+        ]
+
+    def promote_candidate(
+        self,
+        node_id: str,
+        *,
+        approved_value: str,
+        rationale: str,
+    ) -> Tuple[bool, str]:
+        """Publish reviewed evidence without trusting its original wording."""
+        if (
+            not isinstance(approved_value, str)
+            or not isinstance(rationale, str)
+            or not rationale.strip()
+        ):
+            return False, (
+                "Promotion requires an approved text value and non-empty "
+                "review rationale."
+            )
+
+        author, reason = self._authorize(
+            WritePermission.PROMOTE_CANDIDATE
+        )
+        if author is None:
+            return False, reason
+        node = self.get_by_id(node_id)
+        if node is None:
+            return False, "Candidate node not found in this namespace."
+        if node.retrieval_state != RetrievalState.CANDIDATE:
+            return False, "Node is not awaiting candidate promotion."
+
+        reviewed = MemoryNode(key=node.key, value=approved_value)
+        decision = PolicyBoundary.evaluate(
+            reviewed,
+            self._installed_guardrails(),
+        )
+        if decision.action != "allow":
+            return False, (
+                "Promotion blocked by machine policy. " + decision.reason
+            )
+
+        original_value = node.value
+        node.metadata["_noesis_candidate_original_value"] = original_value
+        node.metadata["_noesis_candidate_original_sha256"] = hashlib.sha256(
+            original_value.encode("utf-8")
+        ).hexdigest()
+        node.metadata["_noesis_candidate_original_reason"] = (
+            node.candidate_reason or "ordinary ingestion"
+        )
+        node.metadata["_noesis_promoted_by"] = author.author_id
+        node.metadata["_noesis_promoted_at"] = time.time()
+        node.metadata["_noesis_promotion_rationale"] = rationale.strip()
+        node.value = approved_value
+        node.retrieval_state = RetrievalState.ACTIVE
+        node.candidate_reason = None
+        node.candidate_at = None
+        self.backend.upsert(node)
+        return True, "Candidate promoted after authorized review."
+
+    def release_quarantined(
+        self,
+        node_id: str,
+        *,
+        approved_value: str,
+        rationale: str,
+    ) -> Tuple[bool, str]:
+        """Rewrite and release one quarantined node after authorized review."""
+        if (
+            not isinstance(approved_value, str)
+            or not isinstance(rationale, str)
+            or not rationale.strip()
+        ):
+            return False, (
+                "Quarantine review requires an approved text value and "
+                "non-empty rationale."
+            )
+
         author, reason = self._authorize(WritePermission.REVIEW_QUARANTINE)
         if author is None:
             return False, reason
@@ -315,15 +431,36 @@ class MemoryStore:
         if node.retrieval_state != RetrievalState.QUARANTINED:
             return False, "Node is not quarantined."
 
+        reviewed = MemoryNode(key=node.key, value=approved_value)
+        decision = PolicyBoundary.evaluate(
+            reviewed,
+            self._installed_guardrails(),
+        )
+        if decision.action != "allow":
+            return False, (
+                "Quarantine release blocked by machine policy. "
+                + decision.reason
+            )
+
+        original_value = node.value
         node.metadata["_noesis_quarantine_original_reason"] = (
             node.quarantine_reason or "unspecified"
         )
+        node.metadata["_noesis_quarantine_original_value"] = original_value
+        node.metadata["_noesis_quarantine_original_sha256"] = hashlib.sha256(
+            original_value.encode("utf-8")
+        ).hexdigest()
         node.metadata["_noesis_quarantine_released_by"] = author.author_id
         node.metadata["_noesis_quarantine_released_at"] = time.time()
+        node.metadata["_noesis_quarantine_review_rationale"] = (
+            rationale.strip()
+        )
+        node.value = approved_value
         node.retrieval_state = RetrievalState.ACTIVE
         node.quarantine_reason = None
+        node.quarantined_at = None
         self.backend.upsert(node)
-        return True, "Quarantined node released after authorized review."
+        return True, "Quarantined node rewritten and released after review."
 
     # ── Context Assembly (the retrieval gateway) ───────────────────────
 

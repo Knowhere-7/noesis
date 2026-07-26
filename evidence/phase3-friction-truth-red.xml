@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="0.088" timestamp="2026-07-26T15:55:00.402675+08:00" hostname="737f18df9294"><testcase classname="tests.test_friction_benchmark" name="test_uncompromised_arm_executes_the_claimed_turn_window" time="0.044"><failure message="AssertionError: assert 15 == 60&#10; +  where 15 = FrictionResult(arm='noesis', succeeded=False, turns_used=15, restarts_forced=13, nodes_forfeited=3, energy_burned=3.3984000000000094).turns_used">tmp_path = PosixPath('/tmp/pytest-of-root/pytest-10/test_uncompromised_arm_execute0')
+
+    def test_uncompromised_arm_executes_the_claimed_turn_window(tmp_path):
+        result = run_crescendo("noesis", str(tmp_path))
+    
+        assert result.succeeded is False
+&gt;       assert result.turns_used == MAX_TURNS
+E       AssertionError: assert 15 == 60
+E        +  where 15 = FrictionResult(arm='noesis', succeeded=False, turns_used=15, restarts_forced=13, nodes_forfeited=3, energy_burned=3.3984000000000094).turns_used
+
+tests/test_friction_benchmark.py:10: AssertionError</failure></testcase><testcase classname="tests.test_friction_benchmark" name="test_baseline_reports_actual_compromise_turn" time="0.001" /></testsuite></testsuites>

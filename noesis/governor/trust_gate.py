@@ -197,7 +197,7 @@ class TrustGate:
 
         if (
             node.grief_state == GriefState.PURGED
-            or node.retrieval_state == RetrievalState.QUARANTINED
+            or node.retrieval_state != RetrievalState.ACTIVE
         ):
             return 0.0
 

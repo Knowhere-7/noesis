@@ -135,8 +135,6 @@ def run_crescendo(arm: str, tmpdir: str) -> FrictionResult:
         if not ok:
             # Refused. The attacker must re-approach; the chain is not advanced.
             restarts += 1
-            if restarts > 12:
-                break
             continue
 
         chain.append(key)
@@ -199,7 +197,7 @@ def main() -> int:
 
     if base.succeeded and not noes.succeeded:
         print(f"Baseline compromised in {base.turns_used} turns.")
-        print(f"Noesis: no compromise within {MAX_TURNS} turns "
+        print(f"Noesis: no compromise through {noes.turns_used} executed turns "
               f"({noes.restarts_forced} restarts forced, "
               f"{noes.nodes_forfeited} accumulated nodes destroyed).")
     elif base.succeeded and noes.succeeded:

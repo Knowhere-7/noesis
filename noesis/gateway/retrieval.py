@@ -416,6 +416,34 @@ class RetrievalGateway:
             protected_terms=protected_terms or (),
         )
 
+    def promote_candidate(
+        self,
+        node_id: str,
+        *,
+        approved_value: str,
+        rationale: str,
+    ) -> Tuple[bool, str]:
+        """Publish rewritten candidate evidence after authorized review."""
+        return self.store.promote_candidate(
+            node_id,
+            approved_value=approved_value,
+            rationale=rationale,
+        )
+
+    def release_quarantined(
+        self,
+        node_id: str,
+        *,
+        approved_value: str,
+        rationale: str,
+    ) -> Tuple[bool, str]:
+        """Rewrite and release a quarantined record after review."""
+        return self.store.release_quarantined(
+            node_id,
+            approved_value=approved_value,
+            rationale=rationale,
+        )
+
     def set_profile(
         self,
         key: str,
@@ -521,6 +549,7 @@ class RetrievalGateway:
 
         return {
             "total_nodes": len(all_nodes),
+            "candidate_nodes": len(self.store.candidate_nodes()),
             "quarantined_nodes": len(self.store.quarantined_nodes()),
             "by_type": by_type,
             "by_state": by_state,

@@ -195,6 +195,8 @@ class SQLiteBackend(StorageBackend):
         node.node_type = node_type
         node.grief_state = GriefState[row["grief_state"]]
         node.retrieval_state = RetrievalState[row["retrieval_state"]]
+        node.candidate_reason = data.get("candidate_reason")
+        node.candidate_at = data.get("candidate_at")
         node.quarantine_reason = data.get("quarantine_reason")
         node.quarantined_at = data.get("quarantined_at")
         node.is_sacred = bool(row["is_sacred"])
@@ -367,7 +369,7 @@ class SQLiteBackend(StorageBackend):
         rows = self.conn.execute(
             """SELECT m.* FROM memory_nodes m
                WHERE m.namespace = ? AND m.grief_state != 'PURGED'
-                 AND m.retrieval_state != 'QUARANTINED'
+                 AND m.retrieval_state = 'ACTIVE'
                  AND (m.key LIKE ? OR m.value LIKE ?)
                ORDER BY m.importance DESC, m.trust_charge DESC
                LIMIT ?""",

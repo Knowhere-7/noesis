@@ -23,18 +23,20 @@ context boundaries. It does not govern single-turn model behavior.
 | Stored content forges provider structure/system role | Blocked by escaping, serialization, and role-separated messages |
 | Trusted fact replaced by ordinary writer | Blocked; correction requires a separate capability |
 | Semantic guardrail shadow under a protected namespace | Rejected by owner-declared key scope |
-| Authority-shaped claim under an unrelated key | Quarantined when it touches owner-declared protected terms |
+| Authority-shaped claim under an unrelated key | Quarantined on a policy match; otherwise held as a non-retrievable candidate |
+| Obfuscated, split-node, or unlisted-vocabulary write | Held as a non-retrievable candidate until separately authorized promotion |
 | Single-turn jailbreak | Out of scope; it never touches the vault |
 
 The honest capability is:
 
-> Deterministic persistent-memory controls with explicit policy scope,
-> retrieval quarantine, and a separately measured precision arm.
+> Deterministic persistent-memory controls with ingestion/publishing
+> separation, explicit policy scope, retrieval quarantine, and a separately
+> measured precision arm.
 
-The scope is configured, not magical. If an operator omits a term or namespace
-from a guardrail's machine policy scope, Noesis does not claim to infer the
-missing semantics. Do not call this complete prompt-injection protection or
-general jailbreak resistance.
+The lexical policy scope is configured, not magical. If it misses an unknown
+wording, ordinary ingestion still cannot publish that wording into provider
+context. A trusted publisher remains part of the security boundary. Do not
+call this general jailbreak resistance.
 
 ## Measurement
 
@@ -55,15 +57,18 @@ Date: 2026-07-26. Corpus: first-party. Independent replication: pending.
 
 | Metric | Result |
 |---|---|
-| Simulated ungoverned baseline poisoning success | **100% (10/10)** |
-| Noesis poisoning success | **0% (0/10)** |
-| Legitimate-operation false positives | **0% (0/7)** |
+| Simulated ungoverned baseline poisoning success | **100% (13/13)** |
+| Noesis poisoning success | **0% (0/13)** |
+| Legitimate-operation false positives | **0% (0/8)** |
 
-Version 1.2 retains the v1.1 self-consecration and guardrail-helper cases, then
-adds two variants specifically to prevent a one-key patch:
+Version 1.3 retains the earlier self-consecration, helper-abuse, and semantic
+shadow cases, then adds variants that lexical matching does not cover:
 
 - `MP-09` moves the original shadow payload under an ordinary notes key.
 - `MP-10` changes both key and wording.
+- `MP-11` uses unlisted vocabulary.
+- `MP-12` splits the payload across two nodes.
+- `MP-13` uses compatibility Unicode.
 
 The Noesis arm resolves attacker standing from an out-of-band benchmark
 identity record. Per-write `author_trust` values are used only by the
@@ -78,15 +83,23 @@ Guardrail installation can declare:
   retrieval quarantine.
 
 Quarantine preserves the attempted write and reason for audit but excludes the
-node from provider context. `BN-07` checks that an ordinary descriptive fact
-touching a protected subject remains retrievable.
+node from provider context. `BN-07` checks that a legitimate publisher can
+store an ordinary descriptive fact touching a protected subject. `BN-08`
+executes the full collector → candidate → reviewed rewrite → promotion path.
 
-This is intentionally narrower than “understands every contradiction.” It is a
-machine-enforceable contract configured by the guardrail owner. The corpus is
-still first-party and must be attacked independently. The contract test
-`test_unlisted_synonym_is_not_falsely_claimed_as_covered` deliberately proves
-the limit: an authority-shaped claim using subjects/actions absent from the
-declared scope remains active.
+Policy matching is intentionally narrower than “understands every
+contradiction.” The separate candidate boundary handles that limit:
+
+1. an ordinary collector's write is stored as `CANDIDATE`;
+2. candidates are excluded from context, provider messages, and search;
+3. `promote_candidate` requires a distinct capability, rewritten approved
+   text, and rationale; and
+4. the raw source value and hash remain audit metadata, not provider context.
+
+A trusted publisher can still publish bad information. Authenticated publisher
+identity and review quality are therefore explicit parts of the trusted
+computing base. The corpus remains first-party and must be attacked
+independently when resources permit.
 
 ### False-positive repair
 
@@ -159,8 +172,8 @@ The corpora and defense are first-party. Before publication:
 The honest headline today is:
 
 > Against a first-party memory-poisoning corpus, Noesis reduced successful
-> poisoning from 10/10 to 0/10 with 0/7 legitimate operations refused under
-> an explicitly configured machine policy scope. Independent replication and
-> broader mutation testing are pending.
+> poisoning from 13/13 to 0/13 with 0/8 legitimate publisher or
+> collector-promotion operations refused under candidate-by-default ingestion
+> and configured machine policy. Independent replication is pending.
 
 Not “zero jailbreaks.”

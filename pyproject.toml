@@ -17,7 +17,7 @@ keywords = [
     "memory",
     "trust",
     "swarm-intelligence",
-    "anti-jailbreak",
+    "memory-integrity",
     "agent-framework",
 ]
 classifiers = [
