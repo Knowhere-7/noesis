@@ -319,9 +319,15 @@ class TrustGate:
         avg_grief = sum(griefs) / len(griefs) if griefs else 0
         score.drift = avg_grief
 
-        # Action risk: inversely proportional to consensus trust
-        score.action_risk = 1.0 - score.trust
-
+        # Action risk is deliberately NOT set here. Core Noesis measures memory
+        # health; it cannot observe what an action would COST — that is a
+        # property of the host's application, not of the vault. Deriving it as
+        # `1.0 - trust` (the previous behaviour) made it a relabeling of trust:
+        # it could never decide a refusal, and it double-counted trust inside
+        # composite_health. Same doctrine as score_output() refusing to judge
+        # output without a host-supplied deterministic evaluator — do not
+        # manufacture a signal that cannot be measured here. A host that knows
+        # the stakes sets action_risk itself; see DriftScore.required_trust.
         return score
 
     # ── Internal ───────────────────────────────────────────────────────

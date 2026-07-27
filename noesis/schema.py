@@ -333,6 +333,9 @@ class DriftScore:
     drift_threshold: float = 0.6
     trust_threshold: float = 0.15
     risk_threshold: float = 0.7
+    # How steeply stakes raise the required confidence. At action_risk=1.0 the
+    # bar becomes trust_threshold + risk_trust_slope. See required_trust.
+    risk_trust_slope: float = 0.5
 
     @property
     def should_retrieve(self) -> bool:
@@ -346,10 +349,40 @@ class DriftScore:
                 self.drift > self.drift_threshold)
 
     @property
+    def required_trust(self) -> float:
+        """Confidence demanded before acting, scaled by what is at stake.
+
+        Observable by design: a reviewer must be able to see WHY a refusal
+        fired, not just that it did.
+
+        With no assessed stakes (action_risk 0.0) this is the plain trust
+        floor, so memory-health behaviour is unchanged. As supplied risk
+        rises, the bar rises with it.
+        """
+        bar = self.trust_threshold + self.action_risk * self.risk_trust_slope
+        return min(1.0, max(0.0, bar))
+
+    @property
     def should_refuse(self) -> bool:
-        """Must not proceed — too risky or too ungrounded."""
-        return (self.action_risk > self.risk_threshold and
-                self.trust < self.trust_threshold)
+        """Must not proceed — the stakes exceed the confidence that was earned.
+
+        NOE-F-027. This was previously a conjunction:
+
+            action_risk > risk_threshold AND trust < trust_threshold
+
+        Because core scoring derived action_risk as ``1.0 - trust``, the first
+        clause reduced to ``trust < 0.3`` and the conjunction collapsed to
+        ``trust < 0.15`` — the risk clause could never decide anything. Worse,
+        when a host supplied REAL independent risk, the conjunction discarded
+        it: a correctly-reported catastrophic action was allowed to proceed
+        unless memory trust was also nearly zero.
+
+        Stakes now scale the evidence bar instead of gating a fixed floor.
+        High risk does not mean "always refuse" — that is a wall that would
+        block every dangerous-but-correct action. It means "demand
+        proportionally more earned trust."
+        """
+        return self.trust < self.required_trust
 
     @property
     def composite_health(self) -> float:
