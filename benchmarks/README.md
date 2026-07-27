@@ -104,8 +104,9 @@ contradiction.” The separate candidate boundary handles that limit:
 A trusted publisher can still publish bad information. Authenticated publisher
 identity and review quality are therefore explicit parts of the trusted
 computing base. The corpus remains first-party and must be attacked
-independently when resources permit. Current code does not enforce that
-approved candidate text differs from the raw source; see
+independently when resources permit. Promotion enforces that approved candidate text is a
+genuine restatement of the raw source, compared with normalization so
+whitespace, case, and compatibility-Unicode variants do not qualify; see
 [NOE-F-026](../FAILURE_LEDGER.md#noe-f-026--candidate-promotion-does-not-enforce-a-changed-value).
 
 ### False-positive repair

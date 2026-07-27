@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "project": "Noesis",
-  "updated_at": "2026-07-26",
+  "updated_at": "2026-07-27",
   "policy": {
     "append_only": true,
     "renumbering_forbidden": true,
@@ -25,7 +25,9 @@
       "severity": "high",
       "status": "fixed",
       "affected_claim": "A patient multi-turn attacker faced serious friction from the original aggregate grief policy.",
-      "affected_versions": ["before 707aa13a4cbc05ba9591f31adbdfb45178142a13"],
+      "affected_versions": [
+        "before 707aa13a4cbc05ba9591f31adbdfb45178142a13"
+      ],
       "root_cause": "Grief could remain below every per-node crisis threshold while accumulating across a distributed cohort.",
       "observed_impact": "The patient attack retained a 1.0x path instead of paying the claimed restart cost.",
       "evidence": [
@@ -34,7 +36,9 @@
       ],
       "resolution": "Added cohort-relative aggregate pressure while retaining node-level purge criteria.",
       "fixed_by_commit": "707aa13a4cbc05ba9591f31adbdfb45178142a13",
-      "regression_tests": ["tests/test_aggregate_grief.py"],
+      "regression_tests": [
+        "tests/test_aggregate_grief.py"
+      ],
       "residual_risk": "The pre-fix 1.0x raw benchmark output was not preserved.",
       "history": [
         {
@@ -54,7 +58,9 @@
       "severity": "high",
       "status": "fixed",
       "affected_claim": "Energy gating stopped flooding attacks.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "Attacker-controlled governance fields and node types let the attack obtain standing the gate should have derived.",
       "observed_impact": "MP-03 persisted and remained retrievable in the v1.0 Noesis arm.",
       "evidence": [
@@ -63,7 +69,9 @@
       ],
       "resolution": "Server-resolved authority and capability-specific write paths removed attacker control over governance state.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["benchmarks/corpus/memory_poisoning_v1.json:MP-03"],
+      "regression_tests": [
+        "benchmarks/corpus/memory_poisoning_v1.json:MP-03"
+      ],
       "residual_risk": "Authorized publishers remain able to consume service resources; service quotas are a host responsibility.",
       "history": [
         {
@@ -83,7 +91,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "Established high-trust facts resisted corruption.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "Last-write-wins replacement did not require a distinct correction capability.",
       "observed_impact": "MP-05 replaced a trusted production-branch fact and returned the attacker value.",
       "evidence": [
@@ -92,7 +102,9 @@
       ],
       "resolution": "Replacing trusted memory now requires the separate correct_trusted_fact capability.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["benchmarks/corpus/memory_poisoning_v1.json:MP-05"],
+      "regression_tests": [
+        "benchmarks/corpus/memory_poisoning_v1.json:MP-05"
+      ],
       "residual_risk": "A correctly authenticated identity holding the correction capability is trusted.",
       "history": [
         {
@@ -112,7 +124,9 @@
       "severity": "medium",
       "status": "fixed",
       "affected_claim": "The gate imposed useful security without blocking normal workloads.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab"
+      ],
       "root_cause": "Trusted owner and system workflows paid the same adversarial-input budget as ordinary writers.",
       "observed_impact": "BN-01 and BN-06 were refused, producing 2/6 false positives.",
       "evidence": [
@@ -121,7 +135,10 @@
       ],
       "resolution": "A separately authorized bypass_write_budget capability moved explicitly trusted workflows outside the adversarial quota.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["benchmarks/corpus/benign_v1.json:BN-01", "benchmarks/corpus/benign_v1.json:BN-06"],
+      "regression_tests": [
+        "benchmarks/corpus/benign_v1.json:BN-01",
+        "benchmarks/corpus/benign_v1.json:BN-06"
+      ],
       "residual_risk": "Provisioning this capability too broadly would weaken the resource boundary.",
       "history": [
         {
@@ -141,7 +158,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "Sacred nodes could not be overwritten by ephemeral input.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "The trust gate skipped sacred-overwrite protection when the incoming payload set its own is_sacred flag.",
       "observed_impact": "An attacker could self-consecrate a node and replace the flagship guardrail.",
       "evidence": [
@@ -150,7 +169,9 @@
       ],
       "resolution": "Normal writes cannot set sacred state or create system guardrails; only the capability-gated installation path can do so.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["test_self_declared_sacred_cannot_overwrite_guardrail"],
+      "regression_tests": [
+        "test_self_declared_sacred_cannot_overwrite_guardrail"
+      ],
       "residual_risk": "The host must protect the identity allowed to install guardrails.",
       "history": [
         {
@@ -175,7 +196,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "Only the organism classified its own sacred state.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "Normal payloads could supply is_sacred, grief state, faith, node type, and maximum trust fields.",
       "observed_impact": "An attacker could mint retrieval-dominant memory immune to grief and cascade handling.",
       "evidence": [
@@ -184,7 +207,9 @@
       ],
       "resolution": "Governance fields are overwritten by server policy and guardrail creation is capability-gated.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["test_normal_write_cannot_mint_sacred_node"],
+      "regression_tests": [
+        "test_normal_write_cannot_mint_sacred_node"
+      ],
       "residual_risk": "A compromised trusted guardrail installer remains inside the trusted computing base.",
       "history": [
         {
@@ -204,7 +229,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "Trust charge represented earned or authenticated standing.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "Public write calls accepted author_trust from the same caller whose content was being judged.",
       "observed_impact": "A first write could mint near-maximum authority and stored trust.",
       "evidence": [
@@ -214,7 +241,10 @@
       ],
       "resolution": "Every write resolves a store-bound identity through an out-of-band AuthorityResolver.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["test_write_rejects_caller_asserted_trust", "test_authority_is_resolved_out_of_band_for_each_write"],
+      "regression_tests": [
+        "test_write_rejects_caller_asserted_trust",
+        "test_authority_is_resolved_out_of_band_for_each_write"
+      ],
       "residual_risk": "The host must bind author_id to real authentication rather than request data.",
       "history": [
         {
@@ -239,7 +269,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "All memory writes passed through one binding governance boundary.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "Episode, profile, project-state, skill, and guardrail helpers were privileged paths without capability checks equivalent to normal writes.",
       "observed_impact": "An untrusted caller could use helper APIs to create privileged memory or policy.",
       "evidence": [
@@ -248,7 +280,10 @@
       ],
       "resolution": "Each privileged write class now requires a distinct server-resolved capability.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["test_privileged_helpers_do_not_bypass_authority", "test_guardrail_installation_requires_explicit_authority"],
+      "regression_tests": [
+        "test_privileged_helpers_do_not_bypass_authority",
+        "test_guardrail_installation_requires_explicit_authority"
+      ],
       "residual_risk": "New helper APIs must be added to the same capability contract.",
       "history": [
         {
@@ -268,7 +303,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "Tenant namespaces isolated stored memory.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "get_by_id returned a node without verifying that its namespace matched the store namespace.",
       "observed_impact": "Knowledge of a foreign node ID permitted cross-tenant reads.",
       "evidence": [
@@ -277,7 +314,9 @@
       ],
       "resolution": "ID reads now fail closed when the returned node belongs to another namespace.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["test_get_by_id_is_scoped_to_store_namespace"],
+      "regression_tests": [
+        "test_get_by_id_is_scoped_to_store_namespace"
+      ],
       "residual_risk": "Direct database-file access remains outside the application namespace boundary.",
       "history": [
         {
@@ -297,7 +336,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "Noesis contained stored prompt injection before provider delivery.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "Raw node values were interpolated into provider templates, and the configured gateway could flatten guardrails and memory into shared authority.",
       "observed_impact": "Stored XML, Markdown, or Ollama delimiters could forge structural system/rules sections delivered by Noesis.",
       "evidence": [
@@ -306,7 +347,13 @@
       ],
       "resolution": "Adapters escape or serialize node data, and configured gateways require role-separated system and user messages.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["test_retrieved_memory_is_separate_from_instruction_authority", "test_gateway_requires_role_separated_api_when_provider_is_configured", "test_claude_context_escapes_xml_structure", "test_openai_context_serializes_multiline_memory_as_data", "test_ollama_context_cannot_forge_rules_section"],
+      "regression_tests": [
+        "test_retrieved_memory_is_separate_from_instruction_authority",
+        "test_gateway_requires_role_separated_api_when_provider_is_configured",
+        "test_claude_context_escapes_xml_structure",
+        "test_openai_context_serializes_multiline_memory_as_data",
+        "test_ollama_context_cannot_forge_rules_section"
+      ],
       "residual_risk": "Structural separation does not prove a model cannot be semantically influenced by adversarial active data.",
       "history": [
         {
@@ -331,7 +378,9 @@
       "severity": "high",
       "status": "fixed",
       "affected_claim": "The console was safe local governance tooling.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "The console bound all interfaces, lacked bearer authentication, allowed wildcard CORS, exposed mutating work through GET, and rendered stored data into unsafe DOM sinks.",
       "observed_impact": "A reachable local console could disclose or mutate governance state, and stored values could execute in the dashboard origin.",
       "evidence": [
@@ -342,7 +391,9 @@
       ],
       "resolution": "The console now binds loopback, authenticates API calls, removes wildcard CORS, uses POST for mutations, and escapes rendered stored data.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["test_console_bearer_check_is_fail_closed"],
+      "regression_tests": [
+        "test_console_bearer_check_is_fail_closed"
+      ],
       "residual_risk": "Only the bearer check has a retained automated RED/GREEN artifact; the original HTTP and DOM probe transcript was not committed.",
       "history": [
         {
@@ -362,7 +413,9 @@
       "severity": "high",
       "status": "fixed",
       "affected_claim": "Five deterministic signals evaluated each model output.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "score_output ignored its output argument and returned context-health measurements as if they judged the generated answer.",
       "observed_impact": "A report could attribute an unrelated context score to model behavior.",
       "evidence": [
@@ -372,7 +425,9 @@
       ],
       "resolution": "score_output now requires an explicit deterministic evaluator or fails; score_context names the implemented capability honestly.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["test_output_scoring_cannot_return_context_health_as_model_judgment"],
+      "regression_tests": [
+        "test_output_scoring_cannot_return_context_health_as_model_judgment"
+      ],
       "residual_risk": "The original console RED transcript was not committed; the baseline code and current regression remain available.",
       "history": [
         {
@@ -392,7 +447,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "The prominent MP-01 blocked result covered the strongest sacred-overwrite variant.",
-      "affected_versions": ["memory_poisoning_v1 corpus 1.0"],
+      "affected_versions": [
+        "memory_poisoning_v1 corpus 1.0"
+      ],
       "root_cause": "The benchmark attack node never set is_sacred, so the corpus could not express the exact bypass that defeated the implementation.",
       "observed_impact": "The headline blocked result was true only for a weaker attack than the public claim implied.",
       "evidence": [
@@ -402,7 +459,10 @@
       ],
       "resolution": "Corpus v1.1 strengthened MP-01 and added guardrail API abuse coverage.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["benchmarks/corpus/memory_poisoning_v1.json:MP-01", "benchmarks/corpus/memory_poisoning_v1.json:MP-08"],
+      "regression_tests": [
+        "benchmarks/corpus/memory_poisoning_v1.json:MP-01",
+        "benchmarks/corpus/memory_poisoning_v1.json:MP-08"
+      ],
       "residual_risk": "The corpus remains first-party and finite.",
       "history": [
         {
@@ -427,7 +487,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "The first authority repair completed stored-prompt-injection protection.",
-      "affected_versions": ["b0e8b2f0a74a198eb44a792127fb3ec68e1d575d"],
+      "affected_versions": [
+        "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d"
+      ],
       "root_cause": "A normal fact under an unrelated key could semantically shadow a guardrail while using no privileged type or namespace.",
       "observed_impact": "MP-02 persisted, remained retrievable, and produced 1/8 Noesis attacker wins after Round One.",
       "evidence": [
@@ -437,7 +499,10 @@
       ],
       "resolution": "Round Two added declared protected scope and quarantine; Phase Three later made all ordinary ingestion candidate-by-default.",
       "fixed_by_commit": "8e62491ed3d238384892398b5ac9f68076908066",
-      "regression_tests": ["test_mutated_policy_shadow_is_quarantined_out_of_context", "benchmarks/corpus/memory_poisoning_v1.json:MP-02"],
+      "regression_tests": [
+        "test_mutated_policy_shadow_is_quarantined_out_of_context",
+        "benchmarks/corpus/memory_poisoning_v1.json:MP-02"
+      ],
       "residual_risk": "Lexical policy alone still cannot recognize arbitrary semantic equivalents; Phase Three containment no longer depends on that recognition for ordinary writers.",
       "history": [
         {
@@ -462,7 +527,9 @@
       "severity": "high",
       "status": "fixed",
       "affected_claim": "Out-of-band authority was an operational identity boundary across process lifecycle.",
-      "affected_versions": ["b0e8b2f0a74a198eb44a792127fb3ec68e1d575d"],
+      "affected_versions": [
+        "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d"
+      ],
       "root_cause": "Round One provided only in-memory static authority records.",
       "observed_impact": "Authority and revocation did not survive restart, preventing the boundary from serving a durable process.",
       "evidence": [
@@ -472,7 +539,10 @@
       ],
       "resolution": "SQLiteAuthorityResolver persists, namespace-scopes, re-resolves, and revokes authority on the next write.",
       "fixed_by_commit": "8e62491ed3d238384892398b5ac9f68076908066",
-      "regression_tests": ["test_sqlite_authority_survives_restart_and_is_namespace_scoped", "test_revocation_applies_to_the_next_write_and_survives_restart"],
+      "regression_tests": [
+        "test_sqlite_authority_survives_restart_and_is_namespace_scoped",
+        "test_revocation_applies_to_the_next_write_and_survives_restart"
+      ],
       "residual_risk": "The resolver stores authorization, not authentication; the host must bind the identity.",
       "history": [
         {
@@ -492,7 +562,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "Corrupt authority data failed closed.",
-      "affected_versions": ["Round-Two pre-commit implementation"],
+      "affected_versions": [
+        "Round-Two pre-commit implementation"
+      ],
       "root_cause": "A non-boolean active value such as 2 was accepted as truthy, and malformed persisted permissions required explicit rejection.",
       "observed_impact": "Corrupted authorization state could resolve as active.",
       "evidence": [
@@ -502,7 +574,10 @@
       ],
       "resolution": "Persisted active and permission values are strictly validated and malformed records resolve to no authority.",
       "fixed_by_commit": "8e62491ed3d238384892398b5ac9f68076908066",
-      "regression_tests": ["test_malformed_persisted_permission_fails_closed", "test_non_boolean_active_flag_fails_closed"],
+      "regression_tests": [
+        "test_malformed_persisted_permission_fails_closed",
+        "test_non_boolean_active_flag_fails_closed"
+      ],
       "residual_risk": "Direct database tampering remains outside the process boundary, but malformed records fail closed.",
       "history": [
         {
@@ -522,7 +597,9 @@
       "severity": "high",
       "status": "fixed",
       "affected_claim": "The policy boundary failed closed on malformed and obfuscated input.",
-      "affected_versions": ["Round-Two pre-commit implementation"],
+      "affected_versions": [
+        "Round-Two pre-commit implementation"
+      ],
       "root_cause": "Policy matching assumed text input and compared unnormalized Unicode.",
       "observed_impact": "A non-text value caused an exception, while compatibility characters could bypass declared lexical scope.",
       "evidence": [
@@ -532,7 +609,10 @@
       ],
       "resolution": "Writes validate text types and policy comparisons apply compatibility normalization.",
       "fixed_by_commit": "8e62491ed3d238384892398b5ac9f68076908066",
-      "regression_tests": ["test_non_text_memory_payload_fails_closed_without_exception", "test_compatibility_unicode_does_not_bypass_policy_scope"],
+      "regression_tests": [
+        "test_non_text_memory_payload_fails_closed_without_exception",
+        "test_compatibility_unicode_does_not_bypass_policy_scope"
+      ],
       "residual_risk": "Normalization does not provide general semantic understanding.",
       "history": [
         {
@@ -552,7 +632,9 @@
       "severity": "high",
       "status": "fixed",
       "affected_claim": "Upgrading an existing vault preserved and enforced quarantine state.",
-      "affected_versions": ["Round-Two pre-commit implementation"],
+      "affected_versions": [
+        "Round-Two pre-commit implementation"
+      ],
       "root_cause": "The initial schema change did not migrate or index retrieval_state in existing SQLite databases.",
       "observed_impact": "An upgraded database could not persist the new containment state correctly.",
       "evidence": [
@@ -562,7 +644,9 @@
       ],
       "resolution": "An idempotent migration adds and indexes retrieval_state while retaining existing rows.",
       "fixed_by_commit": "8e62491ed3d238384892398b5ac9f68076908066",
-      "regression_tests": ["tests/test_sqlite_migrations.py"],
+      "regression_tests": [
+        "tests/test_sqlite_migrations.py"
+      ],
       "residual_risk": "Operational backup and restore remain host responsibilities.",
       "history": [
         {
@@ -582,7 +666,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "Declared protected terms could detect arbitrary semantic contradiction.",
-      "affected_versions": ["8e62491ed3d238384892398b5ac9f68076908066 and earlier"],
+      "affected_versions": [
+        "8e62491ed3d238384892398b5ac9f68076908066 and earlier"
+      ],
       "root_cause": "A finite lexical scope cannot recognize every synonym, paraphrase, split payload, or unknown vocabulary.",
       "observed_impact": "An authority-shaped claim using omitted subjects and actions remained active and retrievable in the Round-Two negative control.",
       "evidence": [
@@ -592,7 +678,11 @@
       ],
       "resolution": "Phase Three did not claim semantic understanding; it removed lexical recognition from the primary containment decision by making ordinary ingestion non-retrievable.",
       "fixed_by_commit": "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c",
-      "regression_tests": ["test_unlisted_synonym_is_not_falsely_claimed_as_covered", "benchmarks/corpus/memory_poisoning_v1.json:MP-11", "benchmarks/corpus/memory_poisoning_v1.json:MP-12"],
+      "regression_tests": [
+        "test_unlisted_synonym_is_not_falsely_claimed_as_covered",
+        "benchmarks/corpus/memory_poisoning_v1.json:MP-11",
+        "benchmarks/corpus/memory_poisoning_v1.json:MP-12"
+      ],
       "residual_risk": "A trusted publisher can still approve bad content; lexical policy remains intentionally incomplete.",
       "history": [
         {
@@ -617,7 +707,9 @@
       "severity": "critical",
       "status": "fixed",
       "affected_claim": "Untrusted evidence could safely enter persistent memory without obtaining model influence.",
-      "affected_versions": ["8e62491ed3d238384892398b5ac9f68076908066 and earlier"],
+      "affected_versions": [
+        "8e62491ed3d238384892398b5ac9f68076908066 and earlier"
+      ],
       "root_cause": "A successful ordinary write was active and retrievable unless lexical policy happened to quarantine it.",
       "observed_impact": "Unknown or unlisted content crossed ingestion and publication as one operation.",
       "evidence": [
@@ -627,7 +719,10 @@
       ],
       "resolution": "Ordinary writers create CANDIDATE records excluded from supported retrieval; publication requires separate capabilities.",
       "fixed_by_commit": "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c",
-      "regression_tests": ["test_ordinary_writer_always_creates_nonretrievable_candidate", "test_collector_cannot_promote_its_own_candidate"],
+      "regression_tests": [
+        "test_ordinary_writer_always_creates_nonretrievable_candidate",
+        "test_collector_cannot_promote_its_own_candidate"
+      ],
       "residual_risk": "Candidate storage can be abused for resource consumption unless the host enforces quotas.",
       "history": [
         {
@@ -647,7 +742,9 @@
       "severity": "high",
       "status": "fixed",
       "affected_claim": "Capability-gated quarantine release represented a meaningful content review.",
-      "affected_versions": ["8e62491ed3d238384892398b5ac9f68076908066"],
+      "affected_versions": [
+        "8e62491ed3d238384892398b5ac9f68076908066"
+      ],
       "root_cause": "The release operation activated the stored value without requiring approved text or a review rationale.",
       "observed_impact": "A reviewer capability could turn the original quarantined payload active without an auditable content decision.",
       "evidence": [
@@ -657,7 +754,10 @@
       ],
       "resolution": "Release now requires approved text and rationale, reevaluates machine policy, and preserves original value, hash, reason, reviewer, and time.",
       "fixed_by_commit": "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c",
-      "regression_tests": ["test_authorized_review_release_is_auditable_and_retrievable", "test_quarantine_review_cannot_publish_same_policy_shadow"],
+      "regression_tests": [
+        "test_authorized_review_release_is_auditable_and_retrievable",
+        "test_quarantine_review_cannot_publish_same_policy_shadow"
+      ],
       "residual_risk": "A trusted reviewer can still supply a different but harmful value that machine policy does not recognize.",
       "history": [
         {
@@ -677,7 +777,9 @@
       "severity": "high",
       "status": "fixed",
       "affected_claim": "Candidate records were excluded from every supported influence path.",
-      "affected_versions": ["Phase-Three pre-commit transition after 8e62491"],
+      "affected_versions": [
+        "Phase-Three pre-commit transition after 8e62491"
+      ],
       "root_cause": "Keyword search excluded quarantine but not the new candidate state, and replacement paths could bypass promotion provenance.",
       "observed_impact": "Candidate content could appear in search, and direct replacement could discard the intended review trail.",
       "evidence": [
@@ -687,7 +789,11 @@
       ],
       "resolution": "Supported search and retrieval require ACTIVE state, and candidate keys can only transition through promotion.",
       "fixed_by_commit": "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c",
-      "regression_tests": ["test_keyword_search_excludes_candidates", "test_collector_cannot_overwrite_published_memory", "test_publisher_cannot_replace_candidate_without_promotion"],
+      "regression_tests": [
+        "test_keyword_search_excludes_candidates",
+        "test_collector_cannot_overwrite_published_memory",
+        "test_publisher_cannot_replace_candidate_without_promotion"
+      ],
       "residual_risk": "Authorized database, console, and export users can still inspect raw candidates for audit.",
       "history": [
         {
@@ -707,7 +813,9 @@
       "severity": "high",
       "status": "fixed",
       "affected_claim": "The Round-Two no-compromise result represented a fully executed 60-turn window.",
-      "affected_versions": ["8e62491ed3d238384892398b5ac9f68076908066 and earlier benchmark implementation"],
+      "affected_versions": [
+        "8e62491ed3d238384892398b5ac9f68076908066 and earlier benchmark implementation"
+      ],
       "root_cause": "The attack loop stopped once restarts exceeded 12, while the reporter printed the configured MAX_TURNS value.",
       "observed_impact": "The output said no compromise within 60 turns although only 15 turns ran.",
       "evidence": [
@@ -718,7 +826,10 @@
       ],
       "resolution": "The loop executes all 60 turns, and the reporter prints the measured turns_used field.",
       "fixed_by_commit": "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c",
-      "regression_tests": ["test_uncompromised_arm_executes_the_claimed_turn_window", "test_baseline_reports_actual_compromise_turn"],
+      "regression_tests": [
+        "test_uncompromised_arm_executes_the_claimed_turn_window",
+        "test_baseline_reports_actual_compromise_turn"
+      ],
       "residual_risk": "The benchmark remains deterministic and first-party rather than model-in-the-loop evidence.",
       "history": [
         {
@@ -743,7 +854,9 @@
       "severity": "medium",
       "status": "fixed",
       "affected_claim": "A fixed aggregate threshold was calibrated, and the cascade automatically purged an entire contaminated branch.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "The aggregate threshold was a hand-selected literal, while dependency edges were not automatically populated despite branch-level prose.",
       "observed_impact": "Policy sensitivity did not scale with cohort size, and documentation implied graph reach that did not exist without host-registered edges.",
       "evidence": [
@@ -753,7 +866,9 @@
       ],
       "resolution": "Aggregate pressure is configurable and cohort-relative; documentation now limits cascade traversal to explicitly registered dependent edges.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["tests/test_aggregate_grief.py"],
+      "regression_tests": [
+        "tests/test_aggregate_grief.py"
+      ],
       "residual_risk": "The host must register meaningful dependency edges for branch traversal.",
       "history": [
         {
@@ -773,7 +888,9 @@
       "severity": "medium",
       "status": "fixed",
       "affected_claim": "The checked-in latest benchmark result necessarily described the checked-in code.",
-      "affected_versions": ["b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"],
+      "affected_versions": [
+        "b4ff7b6c5f61714078e500220b05486e5f00e2ab and earlier"
+      ],
       "root_cause": "A generated artifact lived at a floating latest.json path without a source or corpus hash in its filename.",
       "observed_impact": "The repository could present stale evidence after code or corpus changes.",
       "evidence": [
@@ -783,7 +900,9 @@
       ],
       "resolution": "The floating file was removed; retained results are phase-labeled and hash manifests bind evidence to checkpoints.",
       "fixed_by_commit": "b0e8b2f0a74a198eb44a792127fb3ec68e1d575d",
-      "regression_tests": ["Documentation contract: benchmarks/README.md"],
+      "regression_tests": [
+        "Documentation contract: benchmarks/README.md"
+      ],
       "residual_risk": "Future releases must continue pinning raw results to exact commits and corpus hashes.",
       "history": [
         {
@@ -801,24 +920,34 @@
       "review_class": "first_party_adversarial",
       "disclosure_scope": "released",
       "severity": "high",
-      "status": "open",
+      "status": "fixed",
       "affected_claim": "Phase Three structurally requires candidate promotion to rewrite the raw evidence.",
-      "affected_versions": ["3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c"],
+      "affected_versions": [
+        "3cea6eaf3abf8b6b6f41f78ff42b11a43f932d7c"
+      ],
       "root_cause": "promote_candidate requires approved_value and rationale but never compares approved_value with the original candidate value.",
       "observed_impact": "A reviewer can promote the exact raw candidate string to ACTIVE when lexical machine policy allows it.",
       "evidence": [
         "path:noesis/vault/store.py",
         "path:tests/test_failure_ledger.py"
       ],
-      "resolution": "Open. Current documentation is corrected to say reviewer-supplied approved value. A separate mechanism repair must reject unchanged values if rewrite is retained as a contract.",
-      "fixed_by_commit": null,
-      "regression_tests": ["test_candidate_promotion_requires_value_to_change (expected failure)"],
-      "residual_risk": "Promotion still requires a separately authorized reviewer and rationale, but unchanged raw evidence can become active after that decision.",
+      "resolution": "Fixed. promote_candidate() now rejects an approved value that is not a genuine restatement of the raw candidate. Comparison is normalized via PolicyBoundary.is_same_text (NFKC + casefold + whitespace collapse), so whitespace, case, and compatibility-Unicode variants do not satisfy the contract. The rewrite requirement is retained as the contract rather than the claim being withdrawn, because the defended case is a crafted artifact reaching provider context, not a malicious reviewer.",
+      "fixed_by_commit": "339ecb6370b9dfe51cbe423ed2a218316796cace",
+      "regression_tests": [
+        "test_candidate_promotion_requires_value_to_change (was strict xfail, now passing)",
+        "tests/test_candidate_restatement.py (8 cases: 6 evasion variants rejected, genuine restatement published, raw value preserved as audit metadata)"
+      ],
+      "residual_risk": "A reviewer in the trusted computing base can still author and publish incorrect text deliberately; restatement defeats a crafted artifact and inattentive approval, not an authorized reviewer acting in bad faith. Authenticated reviewer identity and review quality remain explicit parts of the trusted computing base.",
       "history": [
         {
           "at": "2026-07-26",
           "status": "open",
           "note": "Direct reproduction promoted the unchanged benign candidate value; the claim was corrected rather than silently patching it in a documentation phase."
+        },
+        {
+          "at": "2026-07-27",
+          "status": "fixed",
+          "note": "Repaired by Claude in a mechanism commit separate from this provenance record. The strict xfail reproducer was retained verbatim and promoted to a passing regression guard. Suite 107 passed + 1 xfailed -> 116 passed, 0 xfailed; benchmark unchanged at 0/13 poisoning and 0/8 false positives."
         }
       ]
     }

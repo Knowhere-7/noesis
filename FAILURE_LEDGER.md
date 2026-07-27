@@ -31,27 +31,48 @@ commit, regression tests, residual risk, and status history for every entry.
 
 | Status | Count |
 |---|---:|
-| Fixed | 25 |
-| Open | 1 |
+| Fixed | 26 |
+| Open | 0 |
 | Independently certified | 0 |
 
-The open finding is not hidden behind the 96 passing Phase-Three tests:
+Zero open findings is not a safety claim. Nothing here is independently
+certified, and the current limitations below remain binding.
 
 ### NOE-F-026 — candidate promotion does not enforce a changed value
 
-Phase Three was documented as requiring a rewritten candidate value. The
-implementation requires a separately authorized reviewer, an
-`approved_value`, and a non-empty rationale, but it **does not enforce a
-changed value**. If machine policy allows the original wording, the reviewer
-can promote that exact string to `ACTIVE`.
+**Original finding, preserved (2026-07-26).** Phase Three was documented as
+requiring a rewritten candidate value. The implementation requires a separately
+authorized reviewer, an `approved_value`, and a non-empty rationale, but it
+**does not enforce a changed value**. If machine policy allows the original
+wording, the reviewer can promote that exact string to `ACTIVE`.
 
-The claim is therefore narrowed to **reviewer-supplied approved value** until a
+The claim was therefore narrowed to **reviewer-supplied approved value** until a
 separate mechanism repair rejects unchanged source text. The executable
-reproducer remains as a strict expected failure:
+reproducer remained as a strict expected failure:
 `test_candidate_promotion_requires_value_to_change`.
 
 This does not remove the publisher/reviewer authority boundary. It does prove
 that “rewritten” was stronger than the implemented contract.
+
+**REPAIRED 2026-07-27 — `339ecb6`.** `promote_candidate()` now rejects an
+approved value that is not a genuine restatement. Comparison is normalized
+through `PolicyBoundary.is_same_text` (NFKC + casefold + whitespace collapse),
+so whitespace, case, and compatibility-Unicode variants do not satisfy the
+contract — otherwise a single space would have satisfied it. The rewrite
+requirement was retained as the contract rather than the claim being withdrawn.
+
+What this defends is narrow and worth stating exactly: **not** a malicious
+reviewer, who holds `PROMOTE_CANDIDATE`, sits in the trusted computing base,
+and could type any text they wish. It defends against a *crafted artifact*
+reaching provider context. Ingested evidence may be precisely tuned to steer a
+model; requiring restatement destroys that tuning and converts an inattentive
+approval into a deliberate authoring act.
+
+The strict xfail reproducer was retained verbatim and promoted to a passing
+regression guard, per ledger law — a repair appends a status transition, it does
+not erase the failure. Suite `107 passed, 1 xfailed` → `116 passed, 0 xfailed`.
+Benchmark unchanged: `0/13` poisoning, `0/8` false positives, with `BN-08` (the
+full collector → candidate → review → promotion path) still passing.
 
 ## Failure index
 
@@ -82,7 +103,7 @@ that “rewritten” was stronger than the implemented contract.
 | NOE-F-023 | Friction report claimed 60 turns after running 15 | Released | Truth contract | Fixed | `3cea6ea` |
 | NOE-F-024 | Cascade policy and branch language overstated | Claim correction | Fable adversarial sweep | Fixed | `b0e8b2f` |
 | NOE-F-025 | Floating `latest.json` could become stale | Claim correction | Fable adversarial sweep | Fixed | `b0e8b2f` |
-| NOE-F-026 | Promotion accepts unchanged candidate text | Released | Parallel Codex sub-agent inventory | **Open** | — |
+| NOE-F-026 | Promotion accepts unchanged candidate text | Released | Parallel Codex sub-agent inventory | Fixed | `339ecb6` |
 
 “Fixed structurally” for NOE-F-019 does not mean Noesis gained general
 semantic understanding. It means ordinary unmatched content is held outside
@@ -115,8 +136,9 @@ competitor. All listed corpus measurements are first-party.
   proved that lexical scope did not understand unlisted semantics.
 - Round Two’s friction text said 60 turns after the implementation executed
   15. See NOE-F-023.
-- Phase Three requires reviewed approved candidate text; it does not currently
-  enforce textual rewriting. See NOE-F-026.
+- Phase Three requires reviewed approved candidate text. It did not enforce
+  textual rewriting until `339ecb6`; restatement is now enforced with
+  normalized comparison. See NOE-F-026.
 
 ## Current limitations
 
@@ -140,7 +162,9 @@ competitor. All listed corpus measurements are first-party.
     boundary.
 12. Promotion provenance is mutable SQLite metadata, not a signed append-only
     audit log.
-13. NOE-F-026 remains open.
+13. Restatement at promotion defeats a crafted artifact and an inattentive
+    approval. It does not constrain an authorized reviewer acting in bad
+    faith, who remains inside the trusted computing base.
 
 ## Evidence gaps
 
