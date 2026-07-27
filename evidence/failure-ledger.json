@@ -950,6 +950,45 @@
           "note": "Repaired by Claude in a mechanism commit separate from this provenance record. The strict xfail reproducer was retained verbatim and promoted to a passing regression guard. Suite 107 passed + 1 xfailed -> 116 passed, 0 xfailed; benchmark unchanged at 0/13 poisoning and 0/8 false positives."
         }
       ]
+    },
+    {
+      "id": "NOE-F-027",
+      "title": "Refusal ignored assessed stakes because action_risk was derived from trust",
+      "discovered_at": "2026-07-27",
+      "discovered_by": "Fable adversarial sweep finding 6, repaired by Claude",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "DriftScore.should_refuse withholds action when the assessed stakes are too high.",
+      "affected_versions": [
+        "through 4513c9ce8bfde80fa785df1cd6b5adcf3c735007"
+      ],
+      "root_cause": "score_context() set action_risk = 1.0 - trust, so action_risk was a relabeling of trust rather than an independent signal. should_refuse then required BOTH action_risk > 0.7 AND trust < 0.15. Substituting the derivation, action_risk > 0.7 is equivalent to trust < 0.3, so the conjunction collapsed to trust < 0.15 and the risk clause could never decide an outcome. The same derivation also double-counted trust inside composite_health, once directly at weight 0.15 and again as (1 - action_risk) at weight 0.15.",
+      "observed_impact": "Two effects. (1) The risk clause was inert under core scoring. (2) When a host supplied a genuine independent action_risk through a configured output evaluator, the conjunction discarded it: a correctly reported catastrophic action (action_risk 0.99) with poor memory trust (0.20) was not refused.",
+      "evidence": [
+        "path:noesis/schema.py",
+        "path:noesis/governor/trust_gate.py",
+        "path:tests/test_refusal_risk_scaling.py"
+      ],
+      "resolution": "Fixed in two commits. 92edcc2: score_context() no longer fabricates action_risk, because core measures memory health and cannot observe what an action costs, which is a property of the host application. This follows the existing doctrine that score_output() refuses to judge output without a host-supplied deterministic evaluator. should_refuse became trust < required_trust, where required_trust = trust_threshold + action_risk * risk_trust_slope, so stakes scale the evidence bar instead of gating a fixed floor. required_trust is public so a reviewer can see why a refusal fired. d4333f9: owner tuned risk_trust_slope 0.50 -> 0.62, placing the maximum-stakes bar at 0.77.",
+      "fixed_by_commit": "92edcc26e796cb92e85092e56820425d999c1a95",
+      "regression_tests": [
+        "tests/test_refusal_risk_scaling.py (9 cases: core does not derive risk from trust, composite_health no longer double-counts, stakes scale the bar monotonically, catastrophic action with moderate memory refuses, catastrophic action with well-earned trust proceeds, baseline threshold unchanged at 0.14/0.16)"
+      ],
+      "residual_risk": "action_risk is host-supplied. A host that under-reports stakes receives a proportionally lower bar, and core cannot verify the host's assessment. Deliberately not an unconditional refusal on high risk, which would block every dangerous-but-correct action; at action_risk 1.0 the bar is 0.77, so trust 0.78 proceeds while 0.70 refuses. The slope is a tunable policy value, set strict-first on the owner's instruction so it is lowered on evidence rather than raised after an incident.",
+      "history": [
+        {
+          "at": "2026-07-27",
+          "status": "open",
+          "note": "Reproduced directly against 4513c9c: action_risk=0.99 with trust=0.50 returned should_refuse=False. Identified during the Fable adversarial sweep as finding 6 and confirmed still present after the capsule merge."
+        },
+        {
+          "at": "2026-07-27",
+          "status": "fixed",
+          "note": "Repaired red-before-repair, 5 failing tests then green. Suite 98 passed + 1 xfailed -> 107 passed + 1 xfailed. Benchmark unchanged at 0/13 poisoning and 0/8 false positives. Baseline behaviour verified unchanged at trust 0.14 refuse / 0.16 proceed."
+        }
+      ]
     }
   ],
   "current_limitations": [

@@ -31,7 +31,7 @@ commit, regression tests, residual risk, and status history for every entry.
 
 | Status | Count |
 |---|---:|
-| Fixed | 26 |
+| Fixed | 27 |
 | Open | 0 |
 | Independently certified | 0 |
 
@@ -104,6 +104,7 @@ full collector → candidate → review → promotion path) still passing.
 | NOE-F-024 | Cascade policy and branch language overstated | Claim correction | Fable adversarial sweep | Fixed | `b0e8b2f` |
 | NOE-F-025 | Floating `latest.json` could become stale | Claim correction | Fable adversarial sweep | Fixed | `b0e8b2f` |
 | NOE-F-026 | Promotion accepts unchanged candidate text | Released | Parallel Codex sub-agent inventory | Fixed | `339ecb6` |
+| NOE-F-027 | Refusal ignored stakes; action_risk derived from trust | Released | Fable adversarial sweep | Fixed | `92edcc2` |
 
 “Fixed structurally” for NOE-F-019 does not mean Noesis gained general
 semantic understanding. It means ordinary unmatched content is held outside
