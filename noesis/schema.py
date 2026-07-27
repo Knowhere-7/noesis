@@ -334,8 +334,21 @@ class DriftScore:
     trust_threshold: float = 0.15
     risk_threshold: float = 0.7
     # How steeply stakes raise the required confidence. At action_risk=1.0 the
-    # bar becomes trust_threshold + risk_trust_slope. See required_trust.
-    risk_trust_slope: float = 0.5
+    # bar becomes trust_threshold + risk_trust_slope = 0.77. See required_trust.
+    #
+    # TUNING (owner decision, 2026-07-27): deliberately set strict-first. A node
+    # starts at trust 0.5 and earns +0.05 per confirmation, so a 0.77 bar means
+    # roughly six confirmations — and because score_context averages across the
+    # retrieved set, it demands that MOST of the context be genuinely proven
+    # before a maximum-stakes action proceeds.
+    #
+    # Raising this is safe by construction: core scoring leaves action_risk at
+    # 0.0, so the slope multiplies by zero and ordinary operation is unaffected.
+    # It engages only when a host explicitly reports stakes. If that proves too
+    # strict in practice, lower it incrementally on evidence — the failure mode
+    # of starting low (a dangerous action slipping through) is worse than the
+    # failure mode of starting high (a refusal you can observe and relax).
+    risk_trust_slope: float = 0.62
 
     @property
     def should_retrieve(self) -> bool:
