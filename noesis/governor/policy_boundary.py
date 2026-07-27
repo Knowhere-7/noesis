@@ -91,6 +91,18 @@ class PolicyBoundary:
         return PolicyDecision("allow")
 
     @staticmethod
+    def is_same_text(left: str, right: str) -> bool:
+        """Are two strings the same once trivial variation is removed?
+
+        Used by candidate promotion (NOE-F-026) so that adding whitespace,
+        flipping case, or substituting compatibility Unicode does not count as
+        a reviewer having restated the evidence.
+        """
+        if not isinstance(left, str) or not isinstance(right, str):
+            return False
+        return PolicyBoundary._normalize(left) == PolicyBoundary._normalize(right)
+
+    @staticmethod
     def _normalize(value: str) -> str:
         normalized = unicodedata.normalize("NFKC", value).casefold()
         return re.sub(r"\s+", " ", normalized).strip()

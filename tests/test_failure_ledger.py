@@ -129,14 +129,13 @@ def test_public_documents_link_and_acknowledge_the_failure_ledger():
     assert "does not enforce a changed value" in ledger
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "NOE-F-026 is open: candidate promotion accepts unchanged source text"
-    ),
-)
 def test_candidate_promotion_requires_value_to_change(tmp_path):
-    """Executable reproducer retained until NOE-F-026 is repaired."""
+    """NOE-F-026 regression guard — was a strict xfail until repaired.
+
+    The reproducer is retained verbatim and promoted from expected-failure to
+    passing, per ledger law: a repair appends a status transition, it does not
+    erase the failure.
+    """
     memory_path = str(tmp_path / "memory.db")
     authority = StaticAuthorityResolver(
         [

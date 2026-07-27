@@ -376,6 +376,28 @@ class MemoryStore:
         if node.retrieval_state != RetrievalState.CANDIDATE:
             return False, "Node is not awaiting candidate promotion."
 
+        # NOE-F-026. The reviewer must actually restate the evidence, not
+        # rubber-stamp the collector's bytes into provider context.
+        #
+        # This is not a control against a malicious reviewer — a reviewer holds
+        # PROMOTE_CANDIDATE and is part of the trusted computing base, so they
+        # could type any text they wish. It defends the narrower, real case:
+        # ingested text may be *crafted* to steer a model, and adversarial
+        # phrasing is usually tuned precisely. Requiring a genuine restatement
+        # destroys that artifact and converts an inattentive approval into a
+        # deliberate authoring act.
+        #
+        # Comparison is normalized (NFKC + casefold + whitespace collapse, the
+        # same normalization the policy boundary uses) so that adding a space,
+        # flipping case, or swapping in compatibility Unicode does not qualify
+        # as a rewrite.
+        if PolicyBoundary.is_same_text(approved_value, node.value):
+            return False, (
+                "Promotion requires the reviewer to restate the evidence. "
+                "The approved text is not meaningfully different from the raw "
+                "candidate value."
+            )
+
         reviewed = MemoryNode(key=node.key, value=approved_value)
         decision = PolicyBoundary.evaluate(
             reviewed,
