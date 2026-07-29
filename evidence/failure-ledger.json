@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "project": "Noesis",
-  "updated_at": "2026-07-27",
+  "updated_at": "2026-07-28",
   "policy": {
     "append_only": true,
     "renumbering_forbidden": true,
@@ -987,6 +987,45 @@
           "at": "2026-07-27",
           "status": "fixed",
           "note": "Repaired red-before-repair, 5 failing tests then green. Suite 98 passed + 1 xfailed -> 107 passed + 1 xfailed. Benchmark unchanged at 0/13 poisoning and 0/8 false positives. Baseline behaviour verified unchanged at trust 0.14 refuse / 0.16 proceed."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-028",
+      "title": "Branch cascade was inert: grief zeroed before propagation, and propagation never persisted",
+      "discovered_at": "2026-07-28",
+      "discovered_by": "Claude investigation of current limitation 8",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "The grief cascade evaluates registered dependents and can recursively purge a contaminated branch.",
+      "affected_versions": [
+        "through 0104ffec1a9d4f4b7c0ef8e9e6ee1e1b0dcd6c5e"
+      ],
+      "root_cause": "Three stacked issues. (1) _cascade() called _purge_node() and then read node.grief to compute the propagation hit, but _purge_node() sets node.grief = 0.0 while tearing the node down, so every grief_hit evaluated to 0.0 * PROPAGATION_FACTOR = 0. (2) The dependent was fetched via store.get_by_id(), mutated, and never written back, so even a non-zero hit was discarded at the end of the call; _purge_node's trust redistribution to healthy neighbours had the same transient-object defect. (3) No authorized API existed to register a dependency edge at all — write() strips caller-supplied edges, correctly, but nothing replaced them, so the documented capability had no reachable entry point.",
+      "observed_impact": "The branch cascade was inert under every configuration. A contaminated conversation thread purged only its triggering node; dependents were left clean and ACTIVE. The circuit-breaker behaviour described in the module docstring could not occur even for a host that had registered edges through the console or seed script.",
+      "evidence": [
+        "path:noesis/governor/grief_cascade.py",
+        "path:noesis/vault/store.py",
+        "path:tests/test_dependency_edges.py"
+      ],
+      "resolution": "source_grief is captured before _purge_node() runs. Propagated grief and trust changes are upserted, including before recursion since _cascade re-reads dependents from the backend. Added MemoryStore.register_dependency(), gated on a new WritePermission.LINK_MEMORY that is deliberately separate from WRITE_MEMORY: grief flows toward dependents, so an author able to wire a trusted node as a dependent of their own could poison their node and cascade grief into trusted memory. Sacred nodes are refused in either direction; self-links and cross-namespace links are rejected; registration is idempotent. A regression test asserts write() still strips payload-supplied edges.",
+      "fixed_by_commit": "c5d3829f89f5ec9e156f7bd216fb03b72210c1c4",
+      "regression_tests": [
+        "tests/test_dependency_edges.py (10 cases: edge registration and idempotence, self/unknown/cross-namespace rejection, LINK_MEMORY requirement, sacred refusal, payload-edge stripping regression guard, propagated contamination persists, already-stressed branch purges, unlinked bystander untouched)"
+      ],
+      "residual_risk": "Propagation is PROPAGATION_FACTOR (0.6), so a grief-1.0 parent leaves a clean dependent at ~0.6 — STRESSED, below the 0.9 crisis line. A dependent is purged only when propagation carries it past crisis, or when the resulting cohort trips aggregate sub-threshold pressure. The claim is that contamination reaches and persists on the branch, not that every dependent is destroyed. Edges remain host-registered; Noesis still asserts no implicit graph.",
+      "history": [
+        {
+          "at": "2026-07-28",
+          "status": "open",
+          "note": "Found while investigating limitation 8. Direct reproduction: a parent with three registered dependents at grief 1.0 purged 1 node and left all three dependents at grief 0.000 and state ACTIVE."
+        },
+        {
+          "at": "2026-07-28",
+          "status": "fixed",
+          "note": "Same scenario now purges 4 nodes with all three dependents contaminated. Suite 116 -> 126 passed; benchmark unchanged at 0/13 poisoning and 0/8 false positives."
         }
       ]
     }

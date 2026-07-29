@@ -31,7 +31,7 @@ commit, regression tests, residual risk, and status history for every entry.
 
 | Status | Count |
 |---|---:|
-| Fixed | 27 |
+| Fixed | 28 |
 | Open | 0 |
 | Independently certified | 0 |
 
@@ -105,6 +105,7 @@ full collector → candidate → review → promotion path) still passing.
 | NOE-F-025 | Floating `latest.json` could become stale | Claim correction | Fable adversarial sweep | Fixed | `b0e8b2f` |
 | NOE-F-026 | Promotion accepts unchanged candidate text | Released | Parallel Codex sub-agent inventory | Fixed | `339ecb6` |
 | NOE-F-027 | Refusal ignored stakes; action_risk derived from trust | Released | Fable adversarial sweep | Fixed | `92edcc2` |
+| NOE-F-028 | Branch cascade inert: grief zeroed pre-propagation, never persisted | Released | Claude limitation-8 investigation | Fixed | `c5d3829` |
 
 “Fixed structurally” for NOE-F-019 does not mean Noesis gained general
 semantic understanding. It means ordinary unmatched content is held outside
@@ -155,7 +156,13 @@ competitor. All listed corpus measurements are first-party.
 6. Single-turn jailbreaks are out of scope.
 7. No model-in-the-loop result proves that a model cannot be semantically
    influenced by adversarial content an authorized publisher activates.
-8. Cascades follow only explicitly registered dependency edges.
+8. Cascades follow only explicitly registered dependency edges. Edges are
+    registered through `MemoryStore.register_dependency()`, which requires the
+    distinct `LINK_MEMORY` capability; Noesis never infers a graph and never
+    accepts edges from a memory payload. Propagation is 0.6 of source grief, so
+    a dependent is purged only when that carries it past crisis or the cohort
+    trips aggregate pressure — contamination reaches the branch, it does not
+    automatically destroy it.
 9. Lexical policy scope remains finite and operator-declared.
 10. Existing identities require explicit reprovisioning for Phase-Three
     capabilities.
