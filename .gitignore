@@ -11,3 +11,7 @@ build/
 *.env
 *.db-shm
 *.db-wal
+
+# Generated benchmark output — regenerate with `python benchmarks/harness.py`.
+# Tracking it lets a stale result masquerade as current (see NOE-F-025).
+benchmarks/results/
