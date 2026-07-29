@@ -37,6 +37,11 @@ class WritePermission(str, Enum):
     REVIEW_QUARANTINE = "review_quarantine"
     PUBLISH_MEMORY = "publish_memory"
     PROMOTE_CANDIDATE = "promote_candidate"
+    # Registering a dependency edge is deliberately NOT part of WRITE_MEMORY.
+    # Grief propagates from a node to its dependents, so an author who could
+    # wire a trusted node as a dependent of their own could poison their node
+    # and cascade grief into trusted memory. Linking is its own privilege.
+    LINK_MEMORY = "link_memory"
 
 
 @dataclass(frozen=True)

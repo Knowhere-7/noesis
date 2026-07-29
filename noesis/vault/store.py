@@ -314,6 +314,62 @@ class MemoryStore:
 
     # ── Read Operations ────────────────────────────────────────────────
 
+    def register_dependency(
+        self,
+        parent_id: str,
+        dependent_id: str,
+    ) -> Tuple[bool, str]:
+        """Register a contamination edge: parent -> dependent.
+
+        This is the only supported way to build the graph the grief cascade
+        walks. `write()` strips caller-supplied edges, because accepting graph
+        topology from a memory payload would be an authority bypass; without
+        this method the cascade's recursive branch purge was documented but
+        unreachable (limitation 8).
+
+        Semantics: if `parent` is purged, grief propagates to `dependent` at
+        PROPAGATION_FACTOR. The edge means "dependent's validity rests on
+        parent", so contaminating the parent should contaminate what was
+        derived from it.
+
+        Requires LINK_MEMORY, deliberately separate from WRITE_MEMORY. Grief
+        flows toward dependents, so an author able to wire a trusted node as a
+        dependent of their own could poison their node and cascade grief into
+        trusted memory. Sacred nodes are refused in either direction — they are
+        immune to grief anyway, and wiring them invites confusion about a
+        boundary that must stay absolute.
+        """
+        author, reason = self._authorize(WritePermission.LINK_MEMORY)
+        if author is None:
+            return False, reason
+
+        if parent_id == dependent_id:
+            return False, "A node cannot depend on itself."
+
+        parent = self.get_by_id(parent_id)
+        dependent = self.get_by_id(dependent_id)
+        if parent is None:
+            return False, f"Parent node '{parent_id}' not found in this namespace."
+        if dependent is None:
+            return False, (
+                f"Dependent node '{dependent_id}' not found in this namespace."
+            )
+
+        if parent.is_sacred or dependent.is_sacred:
+            return False, (
+                "Sacred nodes cannot participate in dependency edges. Sacred "
+                "ground is immune to grief and its boundary stays absolute."
+            )
+
+        if dependent.id in parent.dependents and parent.id in dependent.dependencies:
+            return True, "Edge already registered."
+
+        parent.dependents.add(dependent.id)
+        dependent.dependencies.add(parent.id)
+        self.backend.upsert(parent)
+        self.backend.upsert(dependent)
+        return True, "Dependency edge registered."
+
     def get(self, key: str, namespace: Optional[str] = None) -> Optional[MemoryNode]:
         """Get a specific node by key."""
         ns = namespace or self.namespace

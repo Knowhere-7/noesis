@@ -218,6 +218,13 @@ class GriefCascade:
         should_purge = self._evaluate_purge(node, store)
 
         if should_purge:
+            # Capture the contamination level BEFORE purging. _purge_node()
+            # zeroes node.grief as part of tearing the node down, so reading it
+            # afterwards made every propagation `0.0 * PROPAGATION_FACTOR` — the
+            # branch cascade could never transmit anything, regardless of
+            # registered edges.
+            source_grief = node.grief
+
             # Purge this node
             self._purge_node(node, store)
             purged.append(node.id)
@@ -231,7 +238,7 @@ class GriefCascade:
                         dependent.faith * self.FAITH_RESISTANCE
                     )
                     grief_hit = (
-                        node.grief * self.PROPAGATION_FACTOR * faith_damper
+                        source_grief * self.PROPAGATION_FACTOR * faith_damper
                     )
                     dependent.grief = min(1.0, dependent.grief + grief_hit)
                     dependent.trust_charge = max(
@@ -242,10 +249,22 @@ class GriefCascade:
                     # Update state and potentially cascade
                     if dependent.grief >= self.CRISIS_THRESHOLD:
                         dependent.grief_state = GriefState.CONTAMINATED
+                        # Persist BEFORE recursing: _cascade re-reads dependents
+                        # from the backend, so an unsaved parent would be seen
+                        # in its pre-propagation state.
+                        store.backend.upsert(dependent)
                         sub_purged = self._cascade(dependent, store)
                         purged.extend(sub_purged)
+                        continue
                     elif dependent.grief >= 0.3:
                         dependent.grief_state = GriefState.STRESSED
+
+                    # Propagation is only real if it survives the transaction.
+                    # `store.get_by_id()` returns a transient object; without
+                    # this upsert the grief and trust changes above were
+                    # computed and then discarded, so contamination never
+                    # actually reached the branch.
+                    store.backend.upsert(dependent)
 
         return purged
 
@@ -313,6 +332,10 @@ class GriefCascade:
             share = (node.trust_charge - 0.05) / len(healthy)
             for h in healthy[:3]:  # top 3, like Murmuration
                 h.trust_charge = min(1.0, h.trust_charge + share)
+                # Same transient-object trap as propagation: these objects came
+                # from store.get_by_id() and the redistribution is lost unless
+                # it is written back.
+                store.backend.upsert(h)
 
         # Mark purged
         node.grief_state = GriefState.PURGED
