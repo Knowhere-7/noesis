@@ -7,16 +7,32 @@ Mechanism changes: none
 
 ## Result
 
-- Historical findings indexed: `26`
-- Fixed findings: `25`
-- Open findings: `1`
-- Binding current limitations: `13`
-- Full suite: `98 passed, 1 expected failure`
+- Historical findings indexed: `28`
+- Fixed findings: `28`
+- Open findings: `0`
+- Binding current limitations: `12` (NOE-L-013 resolved, retained as a transition)
+- Full suite: `126 passed, 0 expected failures`
 - Independent certification: `none`
 
-The expected failure is not a skipped unknown. It is the executable reproducer
-for open finding `NOE-F-026`: candidate promotion accepts approved text that is
-identical to the raw candidate.
+> **Corrected 2026-08-03.** This block previously read `98 passed, 1 expected
+> failure` and described `NOE-F-026` as an open finding whose executable
+> reproducer was a strict xfail. That stopped being true at `339ecb6`, when the
+> reproducer was promoted from expected-failure to passing — but this manifest and
+> `current_limitations` in `evidence/failure-ledger.json` were not updated, so the
+> evidence pack contradicted its own ledger entry, which already recorded
+> `"status": "fixed"`.
+>
+> **Lumo caught it on a first pass.** That is the failure mode this pack exists to
+> prevent: `current_limitations` is the section an external validator trusts most,
+> because it is the self-declared list of what is still wrong. A stale entry there
+> does not merely misstate one finding — it makes the whole pack unusable as
+> evidence, since a reviewer cannot tell which claims were checked against the
+> code and which were inherited from a previous phase.
+>
+> Counts above are now taken from a live run, not restated. A guard in
+> `tests/test_failure_ledger.py` fails if any unresolved limitation names a
+> finding the ledger records as fixed, so this specific contradiction cannot
+> return silently.
 
 ## New truth discovered during this phase
 

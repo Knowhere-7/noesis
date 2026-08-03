@@ -116,6 +116,43 @@ def test_public_failure_ledger_is_complete_and_traceable():
     assert all(item["statement"].strip() for item in limitations)
 
 
+def test_no_unresolved_limitation_claims_a_fixed_finding_is_open():
+    """The evidence pack must not contradict its own ledger.
+
+    On 2026-08-03 Lumo, reading this pack for the first time, reported NOE-F-026
+    as open. It was right about the pack and wrong about the code: the entry had
+    recorded "status": "fixed" since 339ecb6, while current_limitations still
+    asserted "NOE-F-026 remains open". The audit manifest was stale in the same
+    direction, still claiming "98 passed, 1 expected failure" for a reproducer
+    that had been promoted to passing.
+
+    That is worse than a stale number. current_limitations is the section an
+    external validator trusts most, because it is the self-declared list of what
+    is still broken. One false entry there means a reviewer cannot tell which
+    claims were checked against the code and which were inherited — which makes
+    the whole pack unusable as evidence, whatever else is accurate in it.
+
+    So: a limitation may keep naming a fixed finding ONLY once it carries a
+    status transition. Ledger law is that a repair appends a transition rather
+    than erasing the failure, so deletion is not the remedy here.
+    """
+    data = json.loads(LEDGER_PATH.read_text(encoding="utf-8"))
+    fixed = {
+        entry["id"] for entry in data["entries"]
+        if entry.get("status") == "fixed"
+    }
+    offenders = [
+        item["id"] for item in data["current_limitations"]
+        if item.get("status") != "resolved"
+        and any(fid in item.get("statement", "") for fid in fixed)
+    ]
+    assert not offenders, (
+        f"current_limitations still assert an open finding the ledger records as "
+        f"fixed: {offenders}. Either the finding is not actually fixed, or the "
+        f"limitation needs a status transition."
+    )
+
+
 def test_public_documents_link_and_acknowledge_the_failure_ledger():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     benchmark_readme = (

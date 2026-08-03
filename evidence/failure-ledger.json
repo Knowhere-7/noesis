@@ -1081,7 +1081,10 @@
     },
     {
       "id": "NOE-L-013",
-      "statement": "NOE-F-026 remains open: candidate promotion does not enforce that approved text differs from raw candidate text."
+      "status": "resolved",
+      "resolved_by": "NOE-F-026",
+      "resolved_in": "339ecb6",
+      "statement": "RESOLVED. Was: NOE-F-026 remains open: candidate promotion does not enforce that approved text differs from raw candidate text. promote_candidate() now rejects an approved value that is not a genuine restatement, compared via PolicyBoundary.is_same_text (NFKC + casefold + whitespace collapse). Retained rather than deleted: ledger law is that a repair appends a status transition, it does not erase the failure. Caught 2026-08-03 by Lumo on first pass, as a self-contradiction against the NOE-F-026 entry, which had already recorded status 'fixed'."
     }
   ],
   "disclosure_gaps": [
