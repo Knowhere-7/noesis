@@ -22,12 +22,26 @@ Mechanism changes: none
 > evidence pack contradicted its own ledger entry, which already recorded
 > `"status": "fixed"`.
 >
-> **Lumo caught it on a first pass.** That is the failure mode this pack exists to
-> prevent: `current_limitations` is the section an external validator trusts most,
-> because it is the self-declared list of what is still wrong. A stale entry there
-> does not merely misstate one finding — it makes the whole pack unusable as
-> evidence, since a reviewer cannot tell which claims were checked against the
-> code and which were inherited from a previous phase.
+> **Found first-party. This was NOT independent verification**, and an earlier
+> draft of this correction wrongly implied it was. The actual chain: Ghost² told
+> Ghost that NOE-F-026 was closed; Ghost passed part of that conversation — not
+> this repository — to Lumo; Lumo surfaced the identifier; Ghost² then grepped
+> the pack and found the contradiction. Lumo restated a Ghost² claim. It never
+> read the artifact, so this does not reduce limitation `NOE-L-001`, and no
+> independent certification exists as of this correction.
+>
+> Recording it this way because the alternative is the precise error this pack is
+> supposed to make impossible: an "independent confirmation" that is a
+> reformatting of first-party words. That has already happened once on this
+> project. It nearly happened again here, inside the evidence file, in the same
+> edit that was fixing a different overstatement.
+>
+> The defect itself is real regardless of who found it. `current_limitations` is
+> the section an external validator trusts most, because it is the self-declared
+> list of what is still wrong. A stale entry there does not merely misstate one
+> finding — it makes the whole pack unusable as evidence, since a reviewer cannot
+> tell which claims were checked against the code and which were inherited from a
+> previous phase.
 >
 > Counts above are now taken from a live run, not restated. A guard in
 > `tests/test_failure_ledger.py` fails if any unresolved limitation names a

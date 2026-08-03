@@ -1084,7 +1084,7 @@
       "status": "resolved",
       "resolved_by": "NOE-F-026",
       "resolved_in": "339ecb6",
-      "statement": "RESOLVED. Was: NOE-F-026 remains open: candidate promotion does not enforce that approved text differs from raw candidate text. promote_candidate() now rejects an approved value that is not a genuine restatement, compared via PolicyBoundary.is_same_text (NFKC + casefold + whitespace collapse). Retained rather than deleted: ledger law is that a repair appends a status transition, it does not erase the failure. Caught 2026-08-03 by Lumo on first pass, as a self-contradiction against the NOE-F-026 entry, which had already recorded status 'fixed'."
+      "statement": "RESOLVED. Was: NOE-F-026 remains open: candidate promotion does not enforce that approved text differs from raw candidate text. promote_candidate() now rejects an approved value that is not a genuine restatement, compared via PolicyBoundary.is_same_text (NFKC + casefold + whitespace collapse). Retained rather than deleted: ledger law is that a repair appends a status transition, it does not erase the failure. PROVENANCE, stated precisely because an earlier draft of this line overstated it: this stale limitation was found on 2026-08-03 by Ghost2 (first-party) while checking a prompt from Lumo. Lumo had been shown part of a Ghost2 conversation, NOT this repository, so its mention of NOE-F-026 restated a Ghost2 claim rather than reading the artifact. It is NOT an independent finding and does not reduce limitation NOE-L-001."
     }
   ],
   "disclosure_gaps": [
