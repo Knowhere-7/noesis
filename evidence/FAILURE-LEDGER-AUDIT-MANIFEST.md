@@ -22,19 +22,27 @@ Mechanism changes: none
 > evidence pack contradicted its own ledger entry, which already recorded
 > `"status": "fixed"`.
 >
-> **Found first-party. This was NOT independent verification**, and an earlier
-> draft of this correction wrongly implied it was. The actual chain: Ghost² told
-> Ghost that NOE-F-026 was closed; Ghost passed part of that conversation — not
-> this repository — to Lumo; Lumo surfaced the identifier; Ghost² then grepped
-> the pack and found the contradiction. Lumo restated a Ghost² claim. It never
-> read the artifact, so this does not reduce limitation `NOE-L-001`, and no
-> independent certification exists as of this correction.
+> **Provenance — third statement. The first two were wrong in opposite
+> directions, and that record stays here rather than being tidied away.**
 >
-> Recording it this way because the alternative is the precise error this pack is
-> supposed to make impossible: an "independent confirmation" that is a
-> reformatting of first-party words. That has already happened once on this
-> project. It nearly happened again here, inside the evidence file, in the same
-> edit that was fixing a different overstatement.
+> **Final:** Lumo **read this repository**. The `NOE-F-026` reference came from
+> the artifact — confirmed by Ghost, and independently checkable from session
+> chronology: Lumo raised the identifier *before* Ghost² had mentioned it. Ghost²
+> then verified the contradiction directly. **This is the first finding
+> originating outside the first-party loop.**
+>
+> Draft 1 called it a clean external catch — overstated, because Lumo also held
+> some Ghost² conversation context. Draft 2 swung the other way and claimed Lumo
+> had never seen the repository at all — also wrong. The reasoning error in
+> draft 2 is worth naming: two mistakes in Lumo's first reply (requesting a test
+> file that does not exist; reading "uncited registry links" as URLs) were
+> treated as *corroboration* that it lacked repository access, when contamination
+> from conversation context explained them equally well. Evidence consistent with
+> a hypothesis is not evidence *for* it unless the alternatives were checked.
+>
+> `NOE-L-001` still stands as written: an external reading by a reviewer Ghost
+> trusts is not formal independent certification. But the gate is no longer
+> untouched.
 >
 > The defect itself is real regardless of who found it. `current_limitations` is
 > the section an external validator trusts most, because it is the self-declared
