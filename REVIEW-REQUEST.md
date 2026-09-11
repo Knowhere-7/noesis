@@ -1,6 +1,6 @@
 # Noesis — external review request
 
-**Repo:** https://github.com/Knowhere-7/noesis · commit `ae90f9b` · public, zero dependencies
+**Repo:** https://github.com/Knowhere-7/noesis · commit `25d33d2` · public, zero dependencies
 **Ask:** ~45 minutes if the answer is "the premise is wrong." Longer only if it isn't.
 **Written by:** the person who built it, who is aware that's a problem (see *Why you*).
 
@@ -34,7 +34,7 @@ Stated up front so you can stop reading early if the premise doesn't hold.
 
 | | |
 |---|---|
-| Test suite | 116 passed, 0 xfailed |
+| Test suite | 127 passed, 0 xfailed |
 | First-party attack corpus | 0/13 poisoning success (ungoverned baseline: 13/13) |
 | First-party benign corpus | 0/8 legitimate operations refused |
 | Independently certified | **0** |
@@ -86,7 +86,7 @@ that's worth knowing.
 
 | File | What it is |
 |---|---|
-| `FAILURE_LEDGER.md` | **Start here.** 26 findings, every one published, including the losing benchmark results and the claims we retracted. 13 binding limitations at the bottom. |
+| `FAILURE_LEDGER.md` | **Start here.** 28 findings, every one published, including the losing benchmark results and the claims we retracted. 13 limitations at the bottom (12 still binding; NOE-L-013 resolved). |
 | `evidence/failure-ledger.json` | Same, machine-readable: root cause, repair commit, regression tests, residual risk, status history per entry. |
 | `benchmarks/corpus/*.json` | Both corpora. Attack (13) and benign/false-positive (8). |
 | `noesis/governor/` | `authority.py` (identity + capabilities), `policy_boundary.py` (scope + quarantine), `trust_gate.py`, `grief_cascade.py`. |
@@ -110,7 +110,7 @@ already in it. If you want your involvement uncredited, that's the default.
 
 ## What "bad news" is worth to us
 
-The 26 entries in that ledger include a retracted headline benchmark number
+The 28 entries in that ledger include a retracted headline benchmark number
 (we published 29%, the real figure against a competent attacker was 100%), a
 friction result that claimed 60 turns after executing 15, and every attack that
 used to succeed. The failures are the point — passing numbers are only credible
