@@ -1,6 +1,6 @@
 # Noesis — external review request
 
-**Repo:** https://github.com/Knowhere-7/noesis · commit `25d33d2` · public, zero dependencies
+**Repo:** https://github.com/Knowhere-7/noesis · commit `296665c` · public, zero dependencies
 **Ask:** ~45 minutes if the answer is "the premise is wrong." Longer only if it isn't.
 **Written by:** the person who built it, who is aware that's a problem (see *Why you*).
 
