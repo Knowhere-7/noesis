@@ -31,7 +31,7 @@ commit, regression tests, residual risk, and status history for every entry.
 
 | Status | Count |
 |---|---:|
-| Fixed | 49 |
+| Fixed | 50 |
 | Open | 0 |
 | Independently certified | 0 |
 
@@ -127,6 +127,7 @@ full collector → candidate → review → promotion path) still passing.
 | NOE-F-047 | Replacing a published node dropped its edges; a quarantined replacement overwrote the published value | Released | Cloud ultrareview (first-party class) | Fixed | `a75f664` |
 | NOE-F-048 | `write()` success treated as publication by `promote_skill` and two other callers | Released | Cloud ultrareview + class hunt | Fixed | `a75f664` |
 | NOE-F-049 | Republishing laundered grief and revived purged keys | Released | Class hunt (first-party) | Fixed | `a75f664` |
+| NOE-F-050 | `write()` reported "stored" and "published" as one success value | Released | Follow-through on NOE-F-048 | Fixed | `9009047` |
 
 NOE-F-029 to NOE-F-037 come from a review supplied by Ghost on 2026-09-19 whose
 reviewer identity and repository access are not independently established. It
@@ -243,9 +244,13 @@ competitor. All listed corpus measurements are first-party.
     node margin of 0.900 from a cascade. The `cusp()` readout is
     deterministic and must be kept away from the agent, and any grief input
     an attacker can influence becomes a purge lever as the margin narrows.
-24. (NOE-L-024) `MemoryStore.write()` returns a boolean meaning "stored",
-    not "published". Known callers check `is_retrievable()`, but the API
-    shape still permits the mistake.
+24. (NOE-L-024) **Resolved** by NOE-F-050 in `9009047`. Was: `write()`
+    returned a boolean meaning "stored", not "published". It now returns a
+    `WriteResult` with an explicit outcome and no truth value. Retained per
+    ledger law.
+25. (NOE-L-025) The static guard against misreading a `WriteResult`
+    recognises calls by attribute name; aliasing or `getattr` is not caught
+    statically, though the type still raises when such code runs.
 
 Items 14-20 carry their machine-readable `NOE-L-` ids in
 [`evidence/failure-ledger.json`](evidence/failure-ledger.json), which is the

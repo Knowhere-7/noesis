@@ -34,8 +34,8 @@ Stated up front so you can stop reading early if the premise doesn't hold.
 > brief is pinned to `296665c` and its counts below describe that commit. A
 > second-party review on 2026-09-19 found nine further defects, all now repaired
 > and ledgered as NOE-F-029 to NOE-F-037, followed by eight variants of them
-> (NOE-F-038 to NOE-F-045) found by a deliberate hunt: **49 findings, 24
-> limitations (22 binding), 257 tests**. The 46th corrects our own repair of one of
+> (NOE-F-038 to NOE-F-045) found by a deliberate hunt: **50 findings, 25
+> limitations (22 binding), 276 tests**. The 46th corrects our own repair of one of
 > them: faith was made earnable, which is wrong for a zero-trust design, and is
 > now a static system-set damper with a tamper tripwire. The most important is NOE-F-029, a confused-deputy
 > path the original benchmark could not see because it modelled only a

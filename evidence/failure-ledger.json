@@ -1865,6 +1865,47 @@
           "note": "Repaired in a75f664; regression tests added and each changed module negative-controlled."
         }
       ]
+    },
+    {
+      "id": "NOE-F-050",
+      "title": "write() reported 'stored' and 'published' as one success value",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Follow-through on the cause behind NOE-F-048, recorded as limitation NOE-L-024 and tackled at the repository owner's request",
+      "review_class": "first_party_development",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "A caller can tell whether a write made memory visible to providers.",
+      "affected_versions": [
+        "through 6d6f31d (and master a3394cc)"
+      ],
+      "root_cause": "MemoryStore.write() returned (True, reason) both for a node that went ACTIVE and for one held as a non-retrievable candidate or quarantined. The distinction lived only in a free-text reason and in the stored node's state, so any caller that needed publication and read the boolean was wrong. NOE-F-048 fixed the callers found (promote_skill, process_patterns, end_session) but left the shape of the API that produced the mistake.",
+      "observed_impact": "The ambiguity had already caused one confirmed defect (a skill reported as promoted while stored only as a candidate) and left the same mistake available to every future caller.",
+      "evidence": [
+        "path:noesis/schema.py",
+        "path:noesis/vault/store.py",
+        "path:tests/test_write_result.py",
+        "path:evidence/ultrareview-1-2026-09-21.md"
+      ],
+      "resolution": "WriteResult carries an explicit outcome (PUBLISHED, CANDIDATE, QUARANTINED, REFUSED) with .stored and .published. It deliberately has no truth value and cannot be unpacked, so `if store.write(...)` and `ok, why = store.write(...)` raise instead of guessing; a caller must say which they mean. The write() family (write, write_fact, write_episode, write_profile, write_project_state) and the gateway's learn_fact, set_profile and set_project_state return it. Because a runtime error only fires on paths that execute, a static guard scans the package for the mistake (a write-family call read as a boolean, subscripted, or unpacked), and is itself tested against each offending and each accepted form. 63 existing call sites were converted mechanically; two monkeypatches and one getattr-style call by hand. The benchmark harness and friction adapt at their boundary; the naive baseline store keeps its own tuple.",
+      "fixed_by_commit": "9009047573ebe41993b986e364c2f6d76d40bb5f",
+      "regression_tests": [
+        "tests/test_write_result.py (19 cases: no truth value, no unpacking, immutability, stored vs published per outcome, outcome matches retrievability, gateway wrappers, static guard with positive and negative controls)",
+        "63 converted call sites across the existing suite"
+      ],
+      "residual_risk": "The static guard is best-effort: it recognises attribute calls by name, so aliasing (`w = store.write; w(n)`) or getattr-style calls are not caught statically, though the type still raises when they execute (NOE-L-025). promote_candidate, release_quarantined and write_guardrail keep (bool, str); there True means the effect happened, so they are unambiguous, but the API is not uniform.",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Logged as limitation NOE-L-024 after NOE-F-048: the return shape still permitted the mistake."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 9009047: WriteResult with no truth value, static guard, call sites converted; each changed module negative-controlled (store 8, skill_forge 1, gateway 2)."
+        }
+      ]
     }
   ],
   "current_limitations": [
@@ -1968,7 +2009,14 @@
     },
     {
       "id": "NOE-L-024",
-      "statement": "MemoryStore.write() returns a boolean that means 'stored', not 'published': a candidate or quarantined write also succeeds. Known callers now check is_retrievable(), but the API shape still permits the mistake; a richer return type would remove it."
+      "status": "resolved",
+      "resolved_by": "NOE-F-050",
+      "resolved_in": "9009047",
+      "statement": "RESOLVED. Was: MemoryStore.write() returns a boolean that means 'stored', not 'published': a candidate or quarantined write also succeeds. Known callers now check is_retrievable(), but the API shape still permits the mistake; a richer return type would remove it. The write() family now returns a WriteResult with an explicit outcome and no truth value, so the mistake raises. Retained rather than deleted: ledger law is that a repair appends a status transition, it does not erase the failure."
+    },
+    {
+      "id": "NOE-L-025",
+      "statement": "The static guard against reading a WriteResult as a boolean, subscript, or unpack recognises calls by attribute name. Aliasing a write-family method or reaching it through getattr is not caught statically; the type still raises when such code executes."
     }
   ],
   "disclosure_gaps": [
