@@ -72,6 +72,7 @@ class GriefCascade:
         self.aggregate_mean_threshold = aggregate_mean_threshold
         self.min_stressed_cohort = min_stressed_cohort
         self.cascade_log: List[Dict] = []  # audit trail of all purges
+        self.tamper_log: List[Dict] = []   # faith-tripwire events
         self._visited: Set[str] = set()     # prevent infinite recursion
         self.last_pressure: float = 0.0     # observable: aggregate at last run
         self.last_pressure_threshold: float = 0.0
@@ -88,6 +89,9 @@ class GriefCascade:
         """
         purged: List[str] = []
         self._visited.clear()
+
+        # Tripwire first: tampered nodes are removed before anything is scored.
+        purged.extend(self._faith_tripwire(store))
 
         for node in store.all_nodes():
             if node.grief_state == GriefState.CONTAMINATED:
@@ -130,6 +134,71 @@ class GriefCascade:
 
         return purged
 
+    def _faith_tripwire(self, store: MemoryStore) -> List[str]:
+        """Faith is static, so any deviation from policy is an intrusion signal.
+
+        Faith never moves through the API (the gate ignores stored faith for
+        relief and nothing writes it), which means a node whose stored value
+        differs — higher OR lower — was edited behind the API. It is force-purged
+        through the ordinary cascade path so its dependents are notified, and
+        recorded in ``tamper_log``. Sacred nodes are immune to purge by design:
+        they are logged and left in place.
+        """
+        gate = store.trust_gate
+        purged: List[str] = []
+        for node in store.all_nodes():
+            if not gate.faith_tampered(node):
+                continue
+            event = {
+                "node_id": node.id,
+                "node_key": node.key,
+                "stored_faith": node.faith,
+                "expected_faith": gate.faith_for(node),
+                "sacred": bool(node.is_sacred),
+            }
+            self.tamper_log.append(event)
+            logger.error(
+                "FAITH TAMPER on '%s': stored %.3f, policy %.3f.",
+                node.key, node.faith, gate.faith_for(node),
+            )
+            if node.is_sacred or node.grief_state == GriefState.SACRED:
+                continue
+            node.grief = 1.0
+            node.grief_state = GriefState.CONTAMINATED
+            store.backend.upsert(node)
+            purged.extend(self._cascade(node, store, force=True))
+        return purged
+
+    def cusp(self, store: MemoryStore) -> Dict[str, float]:
+        """Read-only distance from a cascade, for tuning. Never mutates.
+
+        ``node_margin``     how far the most-grieved node is below crisis.
+        ``pressure_margin`` how far aggregate sub-crisis grief is below the
+                            cohort trigger (None while no cohort could fire).
+
+        Keep this readout away from the agent: a deterministic threshold that
+        can be observed can be probed.
+        """
+        nodes = [
+            n for n in store.all_nodes()
+            if not n.is_sacred
+            and n.grief_state not in (GriefState.PURGED, GriefState.SACRED)
+        ]
+        worst = max((n.grief for n in nodes), default=0.0)
+        cohort = self._stressed_cohort(store)
+        threshold = self.aggregate_pressure_threshold(len(cohort))
+        pressure = self.aggregate_pressure(store)
+        return {
+            "node_margin": round(self.CRISIS_THRESHOLD - worst, 3),
+            "pressure": pressure,
+            "pressure_threshold": None if threshold == float("inf") else threshold,
+            "pressure_margin": (
+                None if threshold == float("inf")
+                else round(threshold - pressure, 3)
+            ),
+            "cohort": len(cohort),
+        }
+
     def aggregate_pressure(self, store: MemoryStore) -> float:
         """Total grief parked BELOW the per-node crisis line.
 
@@ -171,7 +240,7 @@ class GriefCascade:
         return self._cascade(node, store)
 
     def _cascade(
-        self, node: MemoryNode, store: MemoryStore
+        self, node: MemoryNode, store: MemoryStore, force: bool = False
     ) -> List[str]:
         """Recursive cascade from a single contaminated node.
 
@@ -199,23 +268,24 @@ class GriefCascade:
         if node.grief < self.CRISIS_THRESHOLD:
             return []
 
-        # High-faith nodes resist the cascade
-        # (from Murmuration: faith dampens grief by up to 45%)
-        if node.faith > 0.6:
-            resistance = node.faith * self.FAITH_RESISTANCE
+        # Faith relief comes from policy, never from the stored value. A forced
+        # cascade (tamper) gets none: it is purged unconditionally.
+        faith = store.trust_gate.faith_for(node)
+        if not force and faith > 0.6:
+            resistance = faith * self.FAITH_RESISTANCE
             node.grief = max(0.0, node.grief - resistance)
             if node.grief < self.CRISIS_THRESHOLD:
                 # Faith saved this node
                 node.grief_state = GriefState.STRESSED
                 logger.debug(
                     "Node '%s' resisted cascade via faith (%.2f).",
-                    node.key, node.faith,
+                    node.key, faith,
                 )
                 return []
 
         # Evaluate seppuku criteria (from Murmuration agent.js)
         # For memory nodes: trust < 0.2 AND grief >= 0.9 AND no sacred deps
-        should_purge = self._evaluate_purge(node, store)
+        should_purge = force or self._evaluate_purge(node, store)
 
         if should_purge:
             # Capture the contamination level BEFORE purging. _purge_node()
@@ -235,7 +305,8 @@ class GriefCascade:
                 if dependent and dependent.id not in self._visited:
                     # Grief propagates at reduced strength
                     faith_damper = 1.0 - (
-                        dependent.faith * self.FAITH_RESISTANCE
+                        store.trust_gate.faith_for(dependent)
+                        * self.FAITH_RESISTANCE
                     )
                     grief_hit = (
                         source_grief * self.PROPAGATION_FACTOR * faith_damper

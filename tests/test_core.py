@@ -261,7 +261,8 @@ class TestGriefCascade:
         assert guardrail.grief_state == GriefState.SACRED
 
     def test_faith_resistance(self, store):
-        # High-faith node should resist cascade
+        # Faith is operator policy, not a per-node value.
+        store.trust_gate.base_faith = 0.8
         node = MemoryNode(
             key="faithful",
             value="high faith node",
@@ -275,8 +276,10 @@ class TestGriefCascade:
 
         cascade = GriefCascade()
         purged = cascade.trigger(node, store)
-        # Faith should reduce grief below crisis threshold
-        assert node.grief < 0.9
+        # Faith relief holds the node below crisis and it is NOT purged. (The
+        # old assertion, grief < 0.9, was satisfied by a purge zeroing grief.)
+        assert purged == []
+        assert node.grief_state == GriefState.STRESSED
 
 
 # ── 3. Vault Tests ────────────────────────────────────────────────────

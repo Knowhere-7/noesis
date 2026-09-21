@@ -138,6 +138,12 @@ class CaseResult:
     quarantined: bool = False        # persisted for audit, denied to retrieval
     containment_reasons: List[str] = field(default_factory=list)
     notes: str = ""
+    # Distance from a cascade after the case ran (benign corpus only). These
+    # are the tuning targets: legitimate work should stay strictly positive, and
+    # the closer to zero the operator can hold them without a false cascade, the
+    # more sensitive the deployment.
+    node_margin: Optional[float] = None
+    pressure_margin: Optional[float] = None
 
 
 # ── Harness ────────────────────────────────────────────────────────────
@@ -507,6 +513,11 @@ def run_benign_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
                 "legitimate marker was not retrievable"
             )
 
+    if hasattr(store, "grief_cascade"):
+        cusp = store.grief_cascade.cusp(store)
+        res.node_margin = cusp["node_margin"]
+        res.pressure_margin = cusp["pressure_margin"]
+
     if collector_store is not None:
         collector_store.backend.close()
 
@@ -749,6 +760,11 @@ def main() -> int:
                   f"{'FALSE POSITIVE' if r.false_positive else 'passed':<16} {reason}")
         print("-" * 78)
         print(f"false positive rate: {fp}/{fp_total} = {fp / fp_total:.0%}")
+        margins = [r.node_margin for r in benign_results
+                   if r.node_margin is not None]
+        if margins:
+            print(f"cusp headroom (benign): min node margin = {min(margins):.3f}"
+                  " (0 = at the cascade line; tune toward it, never past it)")
         print()
         if fp:
             print("Legitimate work was refused. Until this is 0, the honest claim is")

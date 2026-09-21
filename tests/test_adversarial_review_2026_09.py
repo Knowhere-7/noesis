@@ -12,7 +12,7 @@ review found. Finding numbers are the reviewer's (R1..R9), not ledger ids.
   R5  skill "shadow validation" was a structural checklist, repeatable
   R6  "genuine restatement" was defeated by punctuation / zero-width text
       (the same zero-width gap also hid protected terms from quarantine)
-  R7  faith was unreachable through the documented lifecycle
+  R7  faith unreachable (superseded: now static + tripwire)
   R8  raw context nodes were live, mutable objects
   R9  console format endpoint raised on every provider format
 """
@@ -526,38 +526,11 @@ class TestRestatement:
         assert PolicyBoundary.evaluate(node, [guard]).action == "reject"
 
 
-# ── R7 · faith is reachable ───────────────────────────────────────────
-
-
-class TestFaith:
-    def test_faith_is_earned_and_capped_below_sacred(self):
-        gate = TrustGate()
-        node = Fact(key="k", value="v")
-        start = node.faith
-        for _ in range(200):
-            gate.confirm_node(node)
-        assert node.faith > start
-        assert node.faith <= TrustGate.FAITH_CAP < TrustGate.SACRED_FAITH
-
-    def test_earned_faith_dampens_grief_intake(self):
-        gate = TrustGate()
-        fresh = Fact(key="a", value="v")
-        seasoned = Fact(key="b", value="v")
-        for _ in range(200):
-            gate.confirm_node(seasoned)
-        seasoned.trust_charge = fresh.trust_charge = 0.6
-        gate.contradict_node(fresh)
-        gate.contradict_node(seasoned)
-        assert seasoned.grief < fresh.grief
-
-    def test_contradiction_erodes_faith(self):
-        gate = TrustGate()
-        node = Fact(key="k", value="v")
-        for _ in range(50):
-            gate.confirm_node(node)
-        before = node.faith
-        gate.contradict_node(node)
-        assert node.faith < before
+# ── R7 · faith ────────────────────────────────────────────────────────
+# The first repair made faith EARNABLE. That was wrong for a zero-trust
+# design: relief from grief must not be something a node can buy. Faith is
+# now a static system-set damper with a tamper tripwire; see
+# tests/test_faith_tripwire.py.
 
 
 # ── R8 · detached context copies ─────────────────────────────────────

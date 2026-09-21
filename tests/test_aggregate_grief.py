@@ -123,12 +123,12 @@ class TestNoFalsePositives:
 
     def test_high_faith_cohort_resists(self, store):
         """Faith still dampens — aggregate pressure is not a bypass."""
+        # Relief is operator policy, set before anything is written. Mutating a
+        # stored faith value is tampering and trips the cascade instead.
+        store.trust_gate.base_faith = 0.9
         nodes = []
         for i in range(5):
-            n = _stress(store, f"f{i}", hits=3)
-            n.faith = 0.9
-            store.backend.upsert(n)
-            nodes.append(n)
+            nodes.append(_stress(store, f"f{i}", hits=3))
         purged = store.run_grief_cascade()
         # High-faith nodes may survive; the assertion is that faith is consulted,
         # not that nothing happens.

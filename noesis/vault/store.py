@@ -401,7 +401,7 @@ class MemoryStore:
         node.quarantined_at = None
         node.trust_charge = TrustGate.TRUST_FLOOR
         node.grief = 0.0
-        node.faith = 0.1
+        node.faith = self.trust_gate.faith_for(node)
         node.importance = self._IMPORTANCE_POLICY[node.node_type]
         node.dependencies = set()
         node.dependents = set()

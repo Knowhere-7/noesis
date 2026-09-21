@@ -71,13 +71,14 @@ class TrustGate:
     FAITH_DAMPER = 0.45             # faith reduces grief intake by up to 45%
     SACRED_FAITH = 0.92             # gravitational pull of system guardrails
 
-    # Faith is earned, never granted (R7). Ordinary nodes start at 0.1 and gain
-    # a little per full-weight confirmation, up to a cap deliberately below the
-    # sacred constant: no accumulation of confirmations makes a fact as
-    # authoritative as an installed guardrail.
-    FAITH_CAP = 0.6
-    FAITH_GROWTH = 0.01             # per full-weight confirmation
-    FAITH_LOSS = 0.05               # per full-weight contradiction
+    # Faith is a STATIC, system-set damper on grief. It is not earned and it is
+    # not a property of the node: it exists to hold the system a controlled
+    # distance from a cascade, and relief that a node (or an agent acting on
+    # it) could buy would defeat a zero-trust design. Every ordinary node gets
+    # the operator's base_faith; guardrails get SACRED_FAITH. Nothing a session
+    # does moves it, so ANY stored value that differs is tampering, and the
+    # cascade treats it as contamination (see GriefCascade._faith_tripwire).
+    BASE_FAITH = 0.1
 
     # Operational evidence (R3). A successful tool step that mentioned a fact is
     # correlation, not truth: a wrong fact can sit in a step that succeeded, a
@@ -95,7 +96,10 @@ class TrustGate:
     def __init__(
         self,
         output_evaluator: Optional[Callable[..., DriftScore]] = None,
+        base_faith: float = BASE_FAITH,
     ):
+        # Deployed value is operator-set; BASE_FAITH is only the default.
+        self.base_faith = base_faith
         self.session_energy = self.ENERGY_BUDGET_PER_SESSION
         self._contradiction_log: List[Dict] = []
         self.output_evaluator = output_evaluator
@@ -199,6 +203,20 @@ class TrustGate:
 
         return True, "Write permitted."
 
+    # ── Faith (static policy) ──────────────────────────────────────────
+
+    def faith_for(self, node: MemoryNode) -> float:
+        """The faith this node is entitled to. Policy, never the stored value.
+
+        Every consumer reads faith here, so a tampered stored value grants no
+        relief even before the tripwire catches it.
+        """
+        return self.SACRED_FAITH if node.is_sacred else self.base_faith
+
+    def faith_tampered(self, node: MemoryNode) -> bool:
+        """Does the stored faith differ from policy, in either direction?"""
+        return abs(node.faith - self.faith_for(node)) > 1e-9
+
     # ── Read Gate ──────────────────────────────────────────────────────
 
     def gate_read(self, node: MemoryNode) -> float:
@@ -222,7 +240,7 @@ class TrustGate:
 
         # Influence = trust * (1 - grief) * importance
         # Faith bonus: faithful nodes get a lift
-        faith_bonus = 1.0 + (node.faith * 0.3)
+        faith_bonus = 1.0 + (self.faith_for(node) * 0.3)
         influence = (
             node.trust_charge *
             (1.0 - node.grief * 0.6) *
@@ -256,11 +274,6 @@ class TrustGate:
         node.grief = max(
             0.0, node.grief - self.GRIEF_NATURAL_DECAY * 3 * weight
         )
-        if not node.is_sacred:
-            node.faith = max(
-                node.faith,
-                min(self.FAITH_CAP, node.faith + self.FAITH_GROWTH * weight),
-            )
         if isinstance(node, Fact):
             node.confirmation_count += 1
             if weight >= 1.0:
@@ -283,10 +296,9 @@ class TrustGate:
         )
 
         # Faith dampens grief intake (from Murmuration agent.js)
-        faith_damper = 1.0 - (node.faith * self.FAITH_DAMPER)
+        faith_damper = 1.0 - (self.faith_for(node) * self.FAITH_DAMPER)
         grief_delta = self.GRIEF_CONTRADICTION_HIT * faith_damper * weight
         node.grief = min(1.0, node.grief + grief_delta)
-        node.faith = max(0.0, node.faith - self.FAITH_LOSS * weight)
 
         if isinstance(node, Fact):
             node.contradiction_count += 1
@@ -343,7 +355,7 @@ class TrustGate:
             dependent = store.get_by_id(dependent_id)
             if dependent is None or dependent.is_sacred:
                 continue
-            damper = 1.0 - (dependent.faith * self.FAITH_DAMPER)
+            damper = 1.0 - (self.faith_for(dependent) * self.FAITH_DAMPER)
             dependent.grief = min(
                 1.0,
                 dependent.grief
@@ -495,7 +507,7 @@ class TrustGate:
             existing.trust_charge - self.TRUST_CONTRADICTION_DRAIN * 0.5,
         )
         # Accumulate grief on existing
-        faith_damper = 1.0 - (existing.faith * self.FAITH_DAMPER)
+        faith_damper = 1.0 - (self.faith_for(existing) * self.FAITH_DAMPER)
         existing.grief = min(
             1.0,
             existing.grief + self.GRIEF_CONTRADICTION_HIT * 0.5 * faith_damper,

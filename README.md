@@ -128,9 +128,15 @@ Every memory node carries biological state:
 - **grief** — contamination signal `[0, 1]`. An authorized correction of a
   published value now registers a contradiction and propagates grief to its
   registered dependents; a failed session step is only a weak (0.25x) signal.
-- **faith** — `[0, 1]`, starts at 0.1, earned through confirmations up to a cap
-  of 0.6 and eroded by contradictions. Dampens grief intake by up to 45%. Only
-  installed guardrails hold the 0.92 sacred constant.
+- **faith** — a static, system-set damper on grief intake, not a property a
+  node earns. It exists to hold the system a controlled distance from a
+  cascade; relief that a node (or an agent acting on it) could buy would
+  defeat a zero-trust design. Every ordinary node gets the operator's
+  `base_faith`, guardrails get 0.92, and every consumer reads it from policy
+  (`TrustGate.faith_for`), never from the stored value. Nothing a session does
+  moves it, so **any stored value that differs, higher or lower, is
+  tampering**: the cascade force-purges that node and notifies its dependents.
+  The default is a default; deployed values are operator-set and not published.
 - Operational evidence ("a step that mentioned the fact succeeded") is
   correlation, not truth. It is down-weighted and cannot lift trust above 0.75,
   which sits below the 0.77 bar a maximum-stakes action demands.
