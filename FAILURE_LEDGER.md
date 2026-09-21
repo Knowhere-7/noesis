@@ -140,13 +140,13 @@ full collector → candidate → review → promotion path) still passing.
 | NOE-F-026 | Promotion accepts unchanged candidate text | Released | Parallel Codex sub-agent inventory | Fixed | `339ecb6` |
 | NOE-F-027 | Refusal ignored stakes; action_risk derived from trust | Released | Fable adversarial sweep | Fixed | `92edcc2` |
 | NOE-F-028 | Branch cascade inert: grief zeroed pre-propagation, never persisted | Released | Claude limitation-8 investigation | Fixed | `c5d3829` |
-| NOE-F-029 | Privileged agent published runtime-derived poison | Released | Codex product-kernel pass | Fixed | v0.2 working tree |
-| NOE-F-030 | Retrieval ignored query, task type, and token budget | Released | Codex product-kernel pass | Fixed | v0.2 working tree |
+| NOE-F-029 | Privileged agent published runtime-derived poison | Released | Codex product-kernel pass | Fixed | `13bb081` |
+| NOE-F-030 | Retrieval ignored query, task type, and token budget | Released | Codex product-kernel pass | Fixed | `13bb081` |
 | NOE-F-031 | Contradiction handler disconnected from normal corrections | Released | Codex product-kernel pass | Open | — |
-| NOE-F-032 | Runtime data inherited author trust | Released | Codex product-kernel pass | Fixed | v0.2 working tree |
+| NOE-F-032 | Runtime data inherited author trust | Released | Codex product-kernel pass | Fixed | `13bb081` |
 | NOE-F-033 | Skill validation was structural, not outcome evidence | Claim correction | Codex product-kernel pass | Open | — |
-| NOE-F-034 | Cosmetic edit passed candidate-restatement check | Released | Codex product-kernel pass | Fixed | v0.2 working tree |
-| NOE-F-035 | Formatted console context endpoint raised | Released | Codex product-kernel pass | Fixed | v0.2 working tree |
+| NOE-F-034 | Cosmetic edit passed candidate-restatement check | Released | Codex product-kernel pass | Fixed | `13bb081` |
+| NOE-F-035 | Formatted console context endpoint raised | Released | Codex product-kernel pass | Fixed | `13bb081` |
 | NOE-F-036 | Ordinary-node faith lifecycle absent | Accepted limitation | Codex product-kernel pass | Open | — |
 
 “Fixed structurally” for NOE-F-019 does not mean Noesis gained general
