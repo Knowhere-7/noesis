@@ -326,19 +326,16 @@ class TrustGate:
         so nothing that rested on the old value ever learned it had moved.
 
         On a genuine contradiction this
-          - keeps the node's identity and dependency edges (a republish used to
-            silently drop both),
           - carries the contradiction history and marks what was superseded,
           - propagates grief to dependents, whose validity rested on the old
             value.
+        (Identity and dependency edges are kept by MemoryStore.write() for
+        every replacement, contradictory or not.)
         Returns True if a contradiction was registered.
         """
         if not self._detect_contradiction(new, existing):
             return False
 
-        new.id = existing.id
-        new.dependencies = set(existing.dependencies)
-        new.dependents = set(existing.dependents)
         if isinstance(new, Fact) and isinstance(existing, Fact):
             new.contradiction_count = existing.contradiction_count + 1
             new.confirmation_count = 0

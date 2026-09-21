@@ -164,7 +164,11 @@ class RetrievalGateway:
         episode = self.autopsy.to_episode(
             trace, result, self.store.namespace
         )
-        self.store.write_episode(episode)
+        stored, why = self.store.write_episode(episode)
+        if not stored:
+            logger.warning(
+                "Episode '%s' not stored: %s", episode.key, why
+            )
 
         # Update trust on facts the session referenced. These signals are
         # OPERATIONAL — "a step that mentioned the fact succeeded / failed" —

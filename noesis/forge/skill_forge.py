@@ -450,17 +450,27 @@ class SkillForge:
                 "the skill fires no more selectively than chance."
             )
 
+        if not store.can_publish():
+            return False, (
+                "Promoting a skill publishes it, and this identity lacks "
+                "publish_memory authority; nothing was written."
+            )
+
         skill.status = SkillStatus.PROMOTED
         success, reason = store.write(
             skill,
             trust_ceiling=self.PROMOTED_SKILL_TRUST,
             promotion_validated=True,
         )
+        # write() succeeds for a candidate or quarantined node too. Promotion is
+        # only real if the skill can actually reach context.
+        published = success and store.is_retrievable(skill.key)
+        if not published:
+            skill.status = SkillStatus.VALIDATING
+            return False, f"Skill not promoted: {reason}"
 
-        if success:
-            logger.info("Skill '%s' PROMOTED to procedural memory", skill.key)
-
-        return success, f"Skill promoted: {reason}"
+        logger.info("Skill '%s' PROMOTED to procedural memory", skill.key)
+        return True, f"Skill promoted: {reason}"
 
     def deprecate_skill(
         self,
@@ -560,8 +570,11 @@ class SkillForge:
             # Run initial validation
             eval_result = self.validate_skill(skill, store)
 
-            # Write to store (as VALIDATING)
-            store.write(skill)
+            # Write to store (as VALIDATING). A refused write is not a draft.
+            stored, why = store.write(skill)
+            if not stored:
+                logger.warning("Draft '%s' not stored: %s", skill.key, why)
+                continue
 
             drafted.append(skill)
 

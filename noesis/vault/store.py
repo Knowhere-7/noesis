@@ -185,6 +185,11 @@ class MemoryStore:
         can_publish = holds_publish and publish
         existing = self.backend.get_by_key(node.key, self.namespace)
         if existing is not None:
+            if existing.grief_state == GriefState.PURGED:
+                return False, (
+                    f"Key '{node.key}' was purged by the grief cascade and "
+                    "cannot be revived by republishing. Use a new key."
+                )
             if existing.retrieval_state == RetrievalState.CANDIDATE:
                 return False, (
                     f"Key '{node.key}' is an existing candidate. Use "
@@ -201,12 +206,38 @@ class MemoryStore:
                     f"{who} cannot replace published memory '{node.key}'. "
                     "Submit evidence under a new candidate key."
                 )
+            # A replacement is the same node. Identity and dependency edges
+            # carry over in EVERY case (an identical or empty value included):
+            # the row keeps its old id, and the grief cascade walks the edges.
+            node.id = existing.id
+            node.dependencies = set(existing.dependencies)
+            node.dependents = set(existing.dependents)
+            if node.value.strip() == existing.value.strip():
+                # Same claim: republishing it must not wipe what the cascade
+                # and the confirmation record know about it. (A changed value
+                # starts fresh; register_correction records the contradiction.)
+                node.grief = existing.grief
+                node.grief_state = existing.grief_state
+                if isinstance(node, Fact) and isinstance(existing, Fact):
+                    node.confirmation_count = existing.confirmation_count
+                    node.contradiction_count = existing.contradiction_count
+                    node.confirmed = existing.confirmed
 
         decision = PolicyBoundary.evaluate(node, self._installed_guardrails())
         if decision.action == "reject":
             return False, (
                 "Normal memory cannot write a protected authority namespace. "
                 + decision.reason
+            )
+        if decision.action == "quarantine" and existing is not None:
+            # Quarantining a replacement would overwrite the published node with
+            # a non-retrievable one: policy would destroy the memory it exists
+            # to protect. The published value stays; the claim goes under a new
+            # key where it can be quarantined without displacing anything.
+            return False, (
+                f"Replacement of published memory '{node.key}' would be "
+                "quarantined by policy, so the published value was preserved. "
+                "Submit the claim under a new key. " + decision.reason
             )
         allowed, reason = self.trust_gate.gate_write(
             node, self, author
@@ -252,6 +283,21 @@ class MemoryStore:
 
         self.backend.upsert(node)
         return True, reason
+
+    def can_publish(self) -> bool:
+        """Does the bound identity currently hold PUBLISH_MEMORY?"""
+        author, _ = self._authorize(WritePermission.PUBLISH_MEMORY)
+        return author is not None
+
+    def is_retrievable(self, key: str) -> bool:
+        """Is ``key`` currently visible to provider context?
+
+        ``write()`` returns True for "stored" as well as "published" (a
+        candidate or quarantined write also succeeds), so a caller that needs
+        publication must check the resulting state, not the boolean.
+        """
+        node = self.backend.get_by_key(key, self.namespace)
+        return node is not None and self._retrievable(node)
 
     def write_guardrail(
         self,
