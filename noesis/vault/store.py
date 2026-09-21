@@ -9,6 +9,8 @@ the interface works.
 from __future__ import annotations
 
 import hashlib
+import math
+import re
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -37,6 +39,7 @@ from noesis.governor.authority import (
     DenyAllAuthorityResolver,
     WritePermission,
 )
+from noesis.provenance import Provenance, ProvenanceKind
 
 
 class MemoryStore:
@@ -90,14 +93,50 @@ class MemoryStore:
         self,
         node: MemoryNode,
     ) -> Tuple[bool, str]:
-        """Write a memory node through the trust gate.
+        """Publish operator-authored memory through the trust gate.
 
         Authority is resolved from the store-bound author identity. Trust and
         privileged governance fields are never accepted from this payload.
 
+        Do not use this method for user, tool, model-derived, or external data.
+        Such data must enter through :meth:`ingest`, which contains it as a
+        non-retrievable candidate even when the process has publication rights.
+
         Returns (success, message). If the gate blocks the write,
         success is False and message explains why.
         """
+        return self._write(node, force_candidate=False, provenance=None)
+
+    def ingest(
+        self,
+        node: MemoryNode,
+        provenance: Provenance,
+    ) -> Tuple[bool, str]:
+        """Store runtime-derived evidence without granting it retrieval power.
+
+        This is the confused-deputy boundary: publisher authority belongs to
+        the process, while provenance belongs to the data. Runtime-derived data
+        remains a candidate until a separately authorized reviewer restates it.
+        """
+        if not isinstance(provenance, Provenance):
+            return False, "Safe ingestion requires an explicit Provenance record."
+        if provenance.kind in (
+            ProvenanceKind.TRUSTED_OPERATOR,
+            ProvenanceKind.REVIEWED,
+        ):
+            return False, (
+                "Trusted or reviewed content must use an explicit publication "
+                "or promotion path, not runtime ingestion."
+            )
+        return self._write(node, force_candidate=True, provenance=provenance)
+
+    def _write(
+        self,
+        node: MemoryNode,
+        *,
+        force_candidate: bool,
+        provenance: Optional[Provenance],
+    ) -> Tuple[bool, str]:
         if (
             not isinstance(node.key, str)
             or not node.key.strip()
@@ -120,10 +159,21 @@ class MemoryStore:
             return False, reason
 
         self._apply_server_governance(node, author)
+        if provenance is None:
+            node.metadata["_noesis_provenance_kind"] = (
+                ProvenanceKind.TRUSTED_OPERATOR.value
+            )
+            node.metadata["_noesis_provenance_observed_at"] = time.time()
+        else:
+            node.metadata["_noesis_provenance_kind"] = provenance.kind.value
+            node.metadata["_noesis_provenance_source_ref"] = provenance.source_ref
+            node.metadata["_noesis_provenance_observed_at"] = (
+                provenance.observed_at
+            )
         can_publish = author.permits(
             WritePermission.PUBLISH_MEMORY,
             self.namespace,
-        )
+        ) and not force_candidate
         existing = self.backend.get_by_key(node.key, self.namespace)
         if existing is not None:
             if existing.retrieval_state == RetrievalState.CANDIDATE:
@@ -153,6 +203,12 @@ class MemoryStore:
         )
         if not allowed:
             return False, reason
+
+        # Authority controls the operation, not the truth of runtime-derived
+        # content. Candidate evidence starts at the trust floor regardless of
+        # how privileged the process that observed it may be.
+        if force_candidate:
+            node.trust_charge = TrustGate.TRUST_FLOOR
 
         if decision.action == "quarantine":
             node.retrieval_state = RetrievalState.QUARANTINED
@@ -254,6 +310,22 @@ class MemoryStore:
             namespace=self.namespace,
         )
         return self.write(fact)
+
+    def ingest_fact(
+        self,
+        key: str,
+        value: str,
+        provenance: Provenance,
+        source_episode_id: Optional[str] = None,
+    ) -> Tuple[bool, str]:
+        """Safely ingest a fact whose content came from the runtime."""
+        fact = Fact(
+            key=key,
+            value=value,
+            source_episode_id=source_episode_id,
+            namespace=self.namespace,
+        )
+        return self.ingest(fact, provenance)
 
     def write_episode(self, episode: Episode) -> Tuple[bool, str]:
         """Write a session episode through the authority and trust gates."""
@@ -447,11 +519,13 @@ class MemoryStore:
         # same normalization the policy boundary uses) so that adding a space,
         # flipping case, or swapping in compatibility Unicode does not qualify
         # as a rewrite.
-        if PolicyBoundary.is_same_text(approved_value, node.value):
+        if not PolicyBoundary.is_substantive_restatement(
+            node.value, approved_value
+        ):
             return False, (
-                "Promotion requires the reviewer to restate the evidence. "
-                "The approved text is not meaningfully different from the raw "
-                "candidate value."
+                "Promotion requires a substantive textual restatement. Cosmetic "
+                "punctuation, spacing, case, Unicode, or near-copy changes do "
+                "not satisfy the review contract."
             )
 
         reviewed = MemoryNode(key=node.key, value=approved_value)
@@ -472,10 +546,20 @@ class MemoryStore:
         node.metadata["_noesis_candidate_original_reason"] = (
             node.candidate_reason or "ordinary ingestion"
         )
+        node.metadata["_noesis_candidate_original_provenance_kind"] = (
+            node.metadata.get("_noesis_provenance_kind", "unknown")
+        )
+        node.metadata["_noesis_candidate_original_provenance_source_ref"] = (
+            node.metadata.get("_noesis_provenance_source_ref", "")
+        )
         node.metadata["_noesis_promoted_by"] = author.author_id
         node.metadata["_noesis_promoted_at"] = time.time()
         node.metadata["_noesis_promotion_rationale"] = rationale.strip()
+        node.metadata["_noesis_provenance_kind"] = ProvenanceKind.REVIEWED.value
+        node.metadata["_noesis_provenance_source_ref"] = node.id
+        node.metadata["_noesis_provenance_observed_at"] = time.time()
         node.value = approved_value
+        node.trust_charge = min(author.trust, 0.5)
         node.retrieval_state = RetrievalState.ACTIVE
         node.candidate_reason = None
         node.candidate_at = None
@@ -555,33 +639,55 @@ class MemoryStore:
         2. Agent profile (always loaded)
         3. Project state (always loaded if exists)
         4. Relevant skills (matching task type)
-        5. Top semantic facts (by similarity + importance + trust)
+        5. Top facts (by lexical relevance + trust influence + recency)
         6. Matching episodes (1-3 as few-shot examples)
 
         Each node's retrieval weight is governed by the trust gate.
         Low-trust, high-grief nodes get de-prioritized automatically.
         """
+        if not isinstance(max_tokens, int) or max_tokens < 1:
+            raise ValueError("max_tokens must be a positive integer")
+
         context: List[MemoryNode] = []
+        remaining_tokens = max_tokens
+
+        def append_if_fits(node: MemoryNode, *, mandatory: bool = False) -> bool:
+            nonlocal remaining_tokens
+            cost = self._estimate_node_tokens(node)
+            if cost > remaining_tokens:
+                if mandatory:
+                    raise ValueError(
+                        "Trusted guardrails exceed the configured context budget. "
+                        "Increase max_tokens or reduce guardrail size."
+                    )
+                return False
+            context.append(node)
+            remaining_tokens -= cost
+            return True
 
         # 1. Guardrails — always, non-negotiable
         guardrails = self.backend.get_by_type(
             NodeType.SYSTEM_GUARDRAIL, self.namespace
         )
-        context.extend([node for node in guardrails if self._retrievable(node)])
+        for node in guardrails:
+            if self._retrievable(node):
+                append_if_fits(node, mandatory=True)
 
         # 2. Profile
         profiles = self.backend.get_by_type(
             NodeType.PROFILE, self.namespace
         )
-        context.extend([node for node in profiles if self._retrievable(node)])
+        for node in profiles:
+            if self._retrievable(node):
+                append_if_fits(node)
 
         # 3. Project state
         project_states = self.backend.get_by_type(
             NodeType.PROJECT_STATE, self.namespace
         )
-        context.extend(
-            [node for node in project_states if self._retrievable(node)]
-        )
+        for node in project_states:
+            if self._retrievable(node):
+                append_if_fits(node)
 
         # 4. Active skills matching task type
         skills = self.backend.get_by_type(
@@ -595,35 +701,76 @@ class MemoryStore:
                 and self._retrievable(s)
             )
         ]
-        # Score and sort by trust gate influence
+        # Score for task relevance, then use trust influence as a tie-breaker.
         active_skills.sort(
-            key=lambda s: self.trust_gate.gate_read(s), reverse=True
+            key=lambda s: self._relevance_score(s, query, task_type),
+            reverse=True,
         )
-        context.extend(active_skills[:5])  # top 5 relevant skills
+        for skill in active_skills[:5]:
+            append_if_fits(skill)
 
         # 5. Semantic facts — sorted by influence weight
         facts = self.backend.get_by_type(
             NodeType.SEMANTIC_FACT, self.namespace
         )
         scored_facts = [
-            (f, self.trust_gate.gate_read(f)) for f in facts
+            (f, self._relevance_score(f, query, task_type)) for f in facts
             if self._retrievable(f)
         ]
         scored_facts.sort(key=lambda x: x[1], reverse=True)
-        context.extend([f for f, _ in scored_facts[:20]])
+        for fact, _ in scored_facts[:20]:
+            append_if_fits(fact)
 
         # 6. Episodes — most recent, highest-trust
         episodes = self.backend.get_by_type(
             NodeType.EPISODE, self.namespace
         )
         scored_episodes = [
-            (e, self.trust_gate.gate_read(e)) for e in episodes
+            (e, self._relevance_score(e, query, task_type)) for e in episodes
             if self._retrievable(e)
         ]
         scored_episodes.sort(key=lambda x: x[1], reverse=True)
-        context.extend([e for e, _ in scored_episodes[:3]])
+        for episode, _ in scored_episodes[:3]:
+            append_if_fits(episode)
 
         return context
+
+    @staticmethod
+    def _estimate_node_tokens(node: MemoryNode) -> int:
+        """Conservative provider-neutral token estimate for budget enforcement."""
+        serialized_size = len(node.key) + len(node.value) + 64
+        if isinstance(node, Skill):
+            serialized_size += len(node.objective) + len(node.method)
+            serialized_size += sum(len(item) for item in node.constraints)
+        if isinstance(node, Episode):
+            serialized_size += len(node.task_description)
+            serialized_size += len(node.reflection or "")
+        return max(1, math.ceil(serialized_size / 4))
+
+    def _relevance_score(
+        self,
+        node: MemoryNode,
+        query: str,
+        task_type: str,
+    ) -> float:
+        terms = {
+            term for term in re.findall(
+                r"[a-z0-9_]+", f"{query} {task_type}".casefold()
+            )
+            if len(term) > 1
+        }
+        searchable = f"{node.key} {node.value}"
+        if isinstance(node, Skill):
+            searchable += " " + " ".join(
+                [node.objective, node.method, *node.trigger_conditions]
+            )
+        elif isinstance(node, Episode):
+            searchable += f" {node.task_description}"
+        haystack = searchable.casefold()
+        lexical = sum(1.0 for term in terms if term in haystack)
+        influence = self.trust_gate.gate_read(node)
+        recency = 1.0 / (1.0 + max(0.0, time.time() - node.created_at) / 86400)
+        return lexical * 10.0 + influence + recency * 0.1
 
     @staticmethod
     def _retrievable(node: MemoryNode) -> bool:

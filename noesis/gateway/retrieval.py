@@ -35,6 +35,7 @@ from noesis.vault.store import MemoryStore
 from noesis.vault.sqlite_backend import SQLiteBackend
 from noesis.governor.trust_gate import TrustGate
 from noesis.governor.authority import AuthorityResolver
+from noesis.provenance import Provenance, ProvenanceKind
 from noesis.reflection.autopsy import (
     AutopsyResult,
     SessionAutopsy,
@@ -159,11 +160,19 @@ class RetrievalGateway:
         # Run autopsy
         result = self.autopsy.analyze(trace, self.store)
 
-        # Write episode to vault
+        # Session traces contain model/tool/user-derived material. Even though
+        # the gateway process may hold owner authority, the data does not inherit
+        # that authority. Keep it outside provider context pending review.
         episode = self.autopsy.to_episode(
             trace, result, self.store.namespace
         )
-        self.store.write_episode(episode)
+        self.store.ingest(
+            episode,
+            Provenance(
+                ProvenanceKind.MODEL_DERIVED,
+                source_ref=f"session:{trace.session_id}",
+            ),
+        )
 
         # Update trust on confirmed/contradicted facts
         for key in result.facts_confirmed:
@@ -331,9 +340,11 @@ class RetrievalGateway:
     ) -> Tuple[bool, str]:
         """Record a fact using the gateway's authenticated author."""
         episode_id = self._session_id if self._session_trace else None
-        success, reason = self.store.write_fact(
+        success, reason = self.ingest_fact(
             key=key,
             value=value,
+            provenance_kind=ProvenanceKind.MODEL_DERIVED,
+            source_ref=source or "session",
             source_episode_id=episode_id,
         )
 
@@ -348,6 +359,23 @@ class RetrievalGateway:
             })
 
         return success, reason
+
+    def ingest_fact(
+        self,
+        key: str,
+        value: str,
+        *,
+        provenance_kind: ProvenanceKind,
+        source_ref: str = "",
+        source_episode_id: Optional[str] = None,
+    ) -> Tuple[bool, str]:
+        """Ingest user/tool/model/external evidence as a contained candidate."""
+        return self.store.ingest_fact(
+            key=key,
+            value=value,
+            provenance=Provenance(provenance_kind, source_ref=source_ref),
+            source_episode_id=source_episode_id,
+        )
 
     def record_step(
         self,

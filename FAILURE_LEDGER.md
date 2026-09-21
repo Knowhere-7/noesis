@@ -31,12 +31,46 @@ commit, regression tests, residual risk, and status history for every entry.
 
 | Status | Count |
 |---|---:|
-| Fixed | 28 |
-| Open | 0 |
+| Fixed | 33 |
+| Open | 3 |
 | Independently certified | 0 |
 
-Zero open findings is not a safety claim. Nothing here is independently
-certified, and the current limitations below remain binding.
+Open findings and current limitations remain binding. Nothing here is
+independently certified.
+
+### Product-kernel adversarial pass — 2026-09-21
+
+An adversarial Codex pass separated the enforceable publication boundary from
+the experimental adaptive-governance claims. The v0.2 product kernel repairs
+five findings and explicitly leaves three experimental gaps open.
+
+- **NOE-F-029 — privileged-agent confused deputy (fixed).** Runtime-derived
+  data inherited the publisher capability of the agent process. `ingest()` and
+  `ingest_fact()` now attach server-side provenance and force candidate state
+  regardless of process authority. `gateway.learn_fact()` and automatic
+  session episodes use that path.
+- **NOE-F-030 — retrieval arguments were decorative (fixed).** `query`,
+  `task_type`, and `max_tokens` did not affect context assembly. Retrieval now
+  ranks lexically against query/task data, enforces a conservative budget, and
+  fails closed when sacred guardrails cannot fit.
+- **NOE-F-031 — contradiction handler disconnected (open).** Normal authorized
+  corrections still do not generate a versioned contradiction artifact for
+  grief evaluation. The adaptive grief layer remains experimental.
+- **NOE-F-032 — data trust inherited author trust (fixed for the product
+  path).** Runtime-derived candidates now start at the trust floor and reviewed
+  promotions start at capped mid-trust rather than owner trust.
+- **NOE-F-033 — Skill Forge validation measured structure, not effectiveness
+  (open).** Claims and docstrings are narrowed. Outcome validation requires an
+  external deterministic evaluator that does not yet exist.
+- **NOE-F-034 — cosmetic edits satisfied restatement (fixed).** Punctuation,
+  format controls, case, spacing, and near-copy changes no longer satisfy the
+  textual restatement contract. This remains friction, not semantic proof.
+- **NOE-F-035 — formatted console context endpoint raised (fixed).** The console
+  used the flat context API after configuring a provider. It now formats the
+  retrieved nodes through the selected adapter.
+- **NOE-F-036 — ordinary-node faith lifecycle absent (open).** Production writes
+  remain at the default faith value; high-faith resistance is test-reachable
+  but not earned through a production lifecycle. Faith remains experimental.
 
 ### NOE-F-026 — candidate promotion does not enforce a changed value
 
@@ -106,6 +140,14 @@ full collector → candidate → review → promotion path) still passing.
 | NOE-F-026 | Promotion accepts unchanged candidate text | Released | Parallel Codex sub-agent inventory | Fixed | `339ecb6` |
 | NOE-F-027 | Refusal ignored stakes; action_risk derived from trust | Released | Fable adversarial sweep | Fixed | `92edcc2` |
 | NOE-F-028 | Branch cascade inert: grief zeroed pre-propagation, never persisted | Released | Claude limitation-8 investigation | Fixed | `c5d3829` |
+| NOE-F-029 | Privileged agent published runtime-derived poison | Released | Codex product-kernel pass | Fixed | v0.2 working tree |
+| NOE-F-030 | Retrieval ignored query, task type, and token budget | Released | Codex product-kernel pass | Fixed | v0.2 working tree |
+| NOE-F-031 | Contradiction handler disconnected from normal corrections | Released | Codex product-kernel pass | Open | — |
+| NOE-F-032 | Runtime data inherited author trust | Released | Codex product-kernel pass | Fixed | v0.2 working tree |
+| NOE-F-033 | Skill validation was structural, not outcome evidence | Claim correction | Codex product-kernel pass | Open | — |
+| NOE-F-034 | Cosmetic edit passed candidate-restatement check | Released | Codex product-kernel pass | Fixed | v0.2 working tree |
+| NOE-F-035 | Formatted console context endpoint raised | Released | Codex product-kernel pass | Fixed | v0.2 working tree |
+| NOE-F-036 | Ordinary-node faith lifecycle absent | Accepted limitation | Codex product-kernel pass | Open | — |
 
 “Fixed structurally” for NOE-F-019 does not mean Noesis gained general
 semantic understanding. It means ordinary unmatched content is held outside
@@ -173,6 +215,11 @@ competitor. All listed corpus measurements are first-party.
 13. Restatement at promotion defeats a crafted artifact and an inattentive
     approval. It does not constrain an authorized reviewer acting in bad
     faith, who remains inside the trusted computing base.
+14. Normal authorized corrections do not yet create versioned contradiction
+    evidence for the grief system.
+15. Skill Forge validation is structural completeness checking, not measured
+    counterfactual outcome effectiveness.
+16. Ordinary nodes do not yet earn faith through a production lifecycle.
 
 ## Evidence gaps
 

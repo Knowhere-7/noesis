@@ -1,6 +1,6 @@
 # NOESIS — Product Anchor
 
-**One sentence:** Noesis is the runtime trust layer that keeps AI agents aligned, grounded, and on-task across sessions, across models, and across teams.
+**One sentence:** Noesis is the provenance-aware publication boundary that prevents runtime-derived content from silently becoming trusted persistent agent memory.
 
 ---
 
@@ -18,7 +18,14 @@ Developers and teams running persistent AI agents (coding assistants, research a
 
 ## The Exact Promise
 
-Noesis gives your AI agent persistent memory with an immune system. It remembers across sessions, reflects on its own performance, builds skills from repeated failures, and uses swarm-derived governance rules to impose **serious friction** on memory corruption, drift, and memory-persistent attacks.
+Noesis gives persistent agent memory an explicit ingestion and publication
+boundary. Runtime-derived content is labeled by origin, stored outside
+retrieval, and can enter provider context only after separately authorized
+review, substantive restatement, and publication.
+
+Reflection, grief cascades, and skill formation remain experimental. They are
+not part of the product security promise until their production data paths and
+effectiveness tests support that claim.
 
 Friction, not impossibility. In the current first-party corpus, poisoning
 success is 0/13 for Noesis versus 13/13 for the simulated ungoverned baseline;
@@ -37,7 +44,7 @@ SESSION START
   1. Noesis assembles context packet:
      - Agent profile (identity, role, constraints)
      - Project state (current objectives, recent decisions)
-     - Relevant semantic memories (by similarity + importance + recency)
+     - Lexically relevant memories (by query match + trust influence + recency)
      - Matching episodes (1-3 as few-shot examples)
      - Active skills (relevant to task type)
      - Trust state (current charge levels)
@@ -70,8 +77,8 @@ PERIODIC (every N sessions)
      - Detect recurring failures (3-5 similar episodes)
      - Propose candidate skills
   8. Skill validation:
-     - Shadow-run against historical episodes
-     - Score against baseline
+     - Check structure and episode references
+     - Record a structural score
      - Promote, revise, or reject
   9. Memory consolidation:
      - Deduplicate facts
@@ -91,7 +98,9 @@ PERIODIC (every N sessions)
 
 ## The Swarm Governance Differentiator
 
-Noesis combines memory with explicit integrity-state and authority boundaries.
+Noesis combines memory with explicit provenance, publication, integrity-state,
+and authority boundaries. The provenance/publication boundary is the supported
+product kernel; adaptive governance remains experimental.
 The comparison below is a design comparison with a typical ungoverned memory
 library, not a measured benchmark of the named products.
 
@@ -101,7 +110,7 @@ library, not a measured benchmark of the named products.
 | Semantic search | Yes | Yes |
 | Model agnostic | Partial | Full |
 | Self-reflection | No | Yes — session autopsy + project retrospective |
-| Skill generation | No | Yes — validated, versioned, shadow-tested |
+| Skill generation | No | Experimental — structurally checked, not outcome-validated |
 | Context-health signals | No | Yes — 5 deterministic retrieval-context signals |
 | Memory corruption defense | Varies / not measured here | Yes — persisted authority, candidate publishing, sacred nodes, grief cascades |
 | Memory-persistent attack friction | Not measured here | Yes — first-party development measurement only; single-turn out of scope |
@@ -171,7 +180,7 @@ finalized.
 ### Phase 2: Skill Forge
 7. Pattern detection across episodes
 8. Candidate skill proposal
-9. Shadow validation against history
+9. External deterministic outcome validation (not yet implemented)
 10. Skill promotion/rejection pipeline
 
 ### Phase 3: Team Layer

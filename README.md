@@ -1,11 +1,19 @@
 # Noesis
 
-**Runtime trust layer for persistent AI agents.**
+**Provenance-aware publication boundary for persistent AI-agent memory.**
 
-Noesis gives AI agents memory that governs itself. Built from [Murmuration](https://github.com/SpookyGroup/murmuration) — a swarm intelligence simulation where 1,000 agents evolved trust batteries, grief cascades, and faith anchors over 54,000 ticks to reach a stable civilization.
+Noesis prevents runtime-derived content from inheriting the authority of the
+agent process that observed it. User input, tool output, model-derived claims,
+and external evidence remain non-retrievable candidates until an authorized
+reviewer restates and publishes them. See the exact product contract in
+[`PRODUCT-KERNEL.md`](PRODUCT-KERNEL.md).
 
-Those mechanics are implemented here as an alpha Python package: zero
-dependencies, model-agnostic, local-first. The simulation is design
+Noesis was built from [Murmuration](https://github.com/Knowhere-7/murmuration) — a swarm intelligence simulation where 1,000 agents evolved trust batteries, grief cascades, and faith anchors over 54,000 ticks to reach a stable civilization.
+
+The authorization, provenance, containment, review, and bounded-retrieval
+mechanisms are implemented here as an alpha Python package: zero dependencies,
+model-agnostic, local-first. Grief, faith, reflection, and Skill Forge remain
+experimental layers, not product security claims. The simulation is design
 provenance, not security evidence for language models.
 
 ## What It Does
@@ -14,8 +22,8 @@ provenance, not security evidence for language models.
 |---------|----------------|
 | Agent forgets everything between sessions | Persistent memory vault with SQLite |
 | Agent repeats the same mistakes | Session autopsy + project retrospective detect patterns |
-| Agent can't learn new behaviors | Skill Forge generates procedural memory from recurring failures |
-| Agent context degrades across sessions | 5 deterministic retrieval-context health signals |
+| Runtime data inherits process authority | Provenance-aware ingestion always contains runtime-derived data |
+| Agent context exceeds its budget | Query/task ranking plus enforced context budget |
 | *Stored* prompt injection (persisted across sessions) | Candidate-by-default ingestion, authorized publishing, policy quarantine, and role-separated provider messages |
 | Contradictions poison the context | Grief cascade evaluates contaminated nodes and registered dependency edges |
 | Vendor lock-in | Claude, GPT, Ollama adapters. Swap providers without losing memory. |
@@ -73,7 +81,8 @@ messages = gateway.get_context_messages(query="authentication")
 gateway.record_step("read", "auth.py", "found the bug", "read", success=True)
 gateway.record_step("edit", "auth.py", "applied fix", "edit", success=True)
 
-# Learn facts during the session
+# Model-derived facts remain non-retrievable candidates even though this
+# gateway has owner permissions.
 gateway.learn_fact("auth_method", "Uses JWT with RS256")
 
 # End session — autopsy runs automatically
@@ -211,11 +220,11 @@ Recurring failure detected (3+ episodes)
         |
    [PROPOSED] — Skill drafted from pattern evidence
         |
-  [VALIDATING] — Shadow-tested against historical episodes
+  [VALIDATING] — Structurally checked against episode references
         |
    [PROMOTED] — Active in procedural memory (trust 0.5)
         |
-   Retrospective monitors effectiveness
+   Retrospective records observed associations
         |
   [DEPRECATED] — Underperforming, retired but kept for audit
 ```

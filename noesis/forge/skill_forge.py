@@ -3,8 +3,8 @@ Skill Forge — Turns recurring failure patterns into procedural memory.
 
 The lifecycle:
   1. PROPOSED — Pattern detected by Retrospective, skill drafted
-  2. VALIDATING — Shadow-running against historical episodes
-  3. PROMOTED — Passed validation, active in procedural memory
+  2. VALIDATING — Structural validation against episode references
+  3. PROMOTED — Passed structural checks, active in procedural memory
   4. DEPRECATED — Performance declined, retired but kept for audit
   5. REJECTED — Failed validation, archived
 
@@ -40,6 +40,7 @@ from noesis.schema import (
     SkillStatus,
 )
 from noesis.reflection.retrospective import PatternCluster
+from noesis.provenance import Provenance, ProvenanceKind
 
 if TYPE_CHECKING:
     from noesis.vault.store import MemoryStore
@@ -54,8 +55,8 @@ class SkillForge:
     from polluting the agent's behavior:
 
     1. Draft: Pattern → Skill template (structured, not freeform)
-    2. Validate: Replay against historical episodes (shadow mode)
-    3. Promote: Only if validation score beats baseline
+    2. Validate: Check structure and recorded episode references
+    3. Promote: Only if the structural score clears the threshold
     4. Monitor: Retrospective tracks effectiveness post-promotion
     5. Deprecate: If effectiveness drops, skill is retired
 
@@ -64,7 +65,7 @@ class SkillForge:
     """
 
     # Validation thresholds
-    MIN_SHADOW_RUNS = 3             # minimum replay tests
+    MIN_SHADOW_RUNS = 3             # legacy name: minimum structural checks
     PROMOTION_THRESHOLD = 0.6       # must beat baseline by this margin
     DEPRECATION_THRESHOLD = -0.1    # effectiveness below this = deprecate
     MAX_ACTIVE_SKILLS = 20          # prevent skill bloat
@@ -290,21 +291,20 @@ class SkillForge:
                 })
         return tests[:5]  # cap at 5 tests
 
-    # ── Skill Validation (Shadow Mode) ────────────────────────────────
+    # ── Skill Structural Validation ──────────────────────────────────
 
     def validate_skill(
         self,
         skill: Skill,
         store: MemoryStore,
     ) -> Evaluation:
-        """Run a shadow validation of a proposed skill.
-
-        Shadow validation replays historical episodes and
-        estimates whether the skill would have improved outcomes.
+        """Run structural validation of a proposed skill.
 
         For v1, this is a structural check (are the skill's
-        trigger conditions and method well-formed?). Future
-        versions will use LLM-based counterfactual evaluation.
+        trigger conditions and method well-formed, and do its recorded episode
+        references exist?). It does not replay work or measure counterfactual
+        improvement. Outcome-effectiveness claims require an external
+        deterministic evaluator that does not yet exist.
         """
         eval_result = Evaluation(
             key=f"eval:{skill.key}:{skill.shadow_runs + 1}",
@@ -386,16 +386,16 @@ class SkillForge:
         skill: Skill,
         store: MemoryStore,
     ) -> Tuple[bool, str]:
-        """Promote a validated skill to active procedural memory.
+        """Promote a structurally checked skill to procedural memory.
 
         Only promotes if:
-        1. Enough shadow runs completed
-        2. Shadow score beats promotion threshold
+        1. Enough structural checks completed
+        2. Structural score beats promotion threshold
         3. Not at skill cap
         """
         if skill.shadow_runs < self.MIN_SHADOW_RUNS:
             return False, (
-                f"Need {self.MIN_SHADOW_RUNS} shadow runs, "
+                f"Need {self.MIN_SHADOW_RUNS} structural checks, "
                 f"have {skill.shadow_runs}"
             )
 
@@ -403,7 +403,7 @@ class SkillForge:
             skill.status = SkillStatus.REJECTED
             store.write(skill)
             return False, (
-                f"Shadow score {skill.shadow_score:.2f} below "
+                f"Structural score {skill.shadow_score:.2f} below "
                 f"threshold {self.PROMOTION_THRESHOLD}"
             )
 
@@ -516,8 +516,16 @@ class SkillForge:
             # Run initial validation
             eval_result = self.validate_skill(skill, store)
 
-            # Write to store (as VALIDATING)
-            store.write(skill)
+            # The skill is derived from session history. Process authority must
+            # not transfer to that data lineage, so the draft remains a
+            # non-retrievable candidate pending an explicit review design.
+            store.ingest(
+                skill,
+                Provenance(
+                    ProvenanceKind.MODEL_DERIVED,
+                    source_ref=f"retrospective:{pattern.pattern_id}",
+                ),
+            )
 
             drafted.append(skill)
 

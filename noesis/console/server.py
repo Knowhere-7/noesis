@@ -238,11 +238,12 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
         adapter_cls = adapters.get(fmt)
         if adapter_cls:
             _gateway.provider = adapter_cls()
+            nodes = _gateway.get_context_nodes()
+            context = _gateway.provider.format_context(nodes)
         else:
             _gateway.provider = None
-
-        context = _gateway.get_context()
-        nodes = _gateway.get_context_nodes()
+            context = _gateway.get_context()
+            nodes = _gateway.get_context_nodes()
 
         self._json_response({
             "formatted": context,

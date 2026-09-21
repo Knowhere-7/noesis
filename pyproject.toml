@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "noesis"
-version = "0.1.0"
-description = "Runtime trust layer for persistent AI agents — swarm-governed memory, self-reflection, and procedural skill generation."
+version = "0.2.0"
+description = "Provenance-aware publication boundary for persistent AI-agent memory."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Proprietary"}

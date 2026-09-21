@@ -39,7 +39,7 @@ logger = logging.getLogger("noesis.governor")
 
 
 class TrustGate:
-    """The immune system. Governs all memory operations.
+    """Experimental integrity-state mechanisms behind the product boundary.
 
     Maps directly to Murmuration mechanics:
       - trust_charge → earned authority per node

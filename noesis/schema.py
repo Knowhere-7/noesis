@@ -67,7 +67,7 @@ class RetrievalState(Enum):
 class SkillStatus(Enum):
     """Skill lifecycle — from detection to production."""
     PROPOSED = auto()       # pattern detected, skill drafted
-    VALIDATING = auto()     # shadow-running against history
+    VALIDATING = auto()     # structural checks against recorded history
     PROMOTED = auto()       # active in procedural memory
     DEPRECATED = auto()     # performance declined, retired
     REJECTED = auto()       # failed validation
@@ -208,8 +208,8 @@ class Skill(MemoryNode):
     """Learned behavioral pattern — procedural memory.
 
     Born from recurring failure patterns detected across episodes.
-    Must pass shadow validation before promotion. This is where
-    the agent actually gets better over time.
+    Current validation checks structure and episode references. It does not yet
+    prove outcome improvement; the lifecycle remains experimental.
 
     Five parts (from Perplexity spec):
     - trigger_conditions: when should this skill activate?
@@ -231,8 +231,8 @@ class Skill(MemoryNode):
 
     # Validation
     shadow_runs: int = 0
-    shadow_score: float = 0.0       # performance vs baseline
-    baseline_score: float = 0.0
+    shadow_score: float = 0.0       # legacy name: structural score in v0.2
+    baseline_score: float = 0.0     # reserved for future outcome evaluator
     promotion_threshold: float = 0.6  # must beat baseline by this margin
 
     # Versioning

@@ -1,8 +1,6 @@
-"""
-Noesis — Runtime trust layer for persistent AI agents.
+"""Noesis — provenance-aware publication for persistent agent memory."""
 
-Swarm-governed memory with reflection, skill forge, and context-health signals.
-Zero model lock-in. Explicit memory-integrity boundaries. Agents that learn.
-"""
+__version__ = "0.2.0"
+from noesis.provenance import Provenance, ProvenanceKind
 
-__version__ = "0.1.0"
+__all__ = ["Provenance", "ProvenanceKind"]

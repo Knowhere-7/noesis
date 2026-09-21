@@ -4,7 +4,8 @@ Noesis Governor — Swarm Governance for Memory
 Ported from Murmuration's biological rule engine.
 Trust batteries, grief cascades, faith anchors, sacred ground protection.
 
-This is the immune system. The piece nobody else has.
+These adaptive mechanisms are experimental in v0.2. The supported security
+contract is the provenance-aware ingestion and publication boundary.
 """
 
 from noesis.governor.trust_gate import TrustGate
