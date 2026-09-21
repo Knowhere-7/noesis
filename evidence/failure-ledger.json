@@ -1308,6 +1308,11 @@
           "at": "2026-09-21",
           "status": "fixed",
           "note": "Repaired in 115e126; regression tests added."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Superseded by NOE-F-046: making faith earnable was the wrong repair for a zero-trust design. The original defect (faith unreachable) stands as diagnosed; the resolution is now static policy plus a tamper tripwire."
         }
       ]
     },
@@ -1701,6 +1706,47 @@
           "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
         }
       ]
+    },
+    {
+      "id": "NOE-F-046",
+      "title": "Earned faith let session signals buy relief from grief; the NOE-F-035 repair was wrong for a zero-trust design",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Repository owner design review of the NOE-F-035 repair, confirmed by Claude",
+      "review_class": "first_party_development",
+      "disclosure_scope": "development_only",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Faith holds the system a controlled distance from a cascade; the environment is zero-trust.",
+      "affected_versions": [
+        "branch adversarial-review-fixes from 115e126 to 32d71e9 (never merged to master)"
+      ],
+      "root_cause": "The repair of NOE-F-035 treated 'faith is unreachable' as a defect and made it earnable: each confirmation raised a node's faith up to a cap. But faith is not a property of the LLM or the node; it is a damper on grief intake that keeps the system on the cusp of a cascade. Making it earnable let relief be purchased with signals an agent can influence, and the confirmations feeding it were the weak operational evidence added under NOE-F-031.",
+      "observed_impact": "An attacker able to make steps that mention a poisoned fact succeed could have farmed faith on it, dampening grief intake and enabling faith resistance in the cascade, i.e. buying the node protection from the purge the design exists to deliver. The fix worked against the mechanism it was meant to make real. Caught in design review before any merge.",
+      "evidence": [
+        "path:noesis/governor/trust_gate.py",
+        "path:noesis/governor/grief_cascade.py",
+        "path:tests/test_faith_tripwire.py"
+      ],
+      "resolution": "Faith is a static, system-set policy value. TrustGate.faith_for() returns the operator's base_faith (guardrails: the sacred constant) and every consumer reads it there, never from the stored value, so a tampered value grants no relief. The growth and loss added under NOE-F-035 are deleted. Because nothing legitimate moves faith, any stored value that differs from policy, higher or lower, is treated as tampering: GriefCascade._faith_tripwire force-purges the node through the ordinary cascade path (bypassing faith resistance and the seppuku criteria) so its dependents are notified, and records the event in tamper_log; sacred nodes are logged and left in place. GriefCascade.cusp() gives a read-only readout of the distance from a cascade and the benign benchmark reports its minimum node margin. base_faith is a constructor parameter, so published numbers are defaults and deployed values are operator-set. Tests that mutated stored faith to obtain resistance now set policy instead; one asserted grief < 0.9, which a purge satisfied by zeroing grief, and is now non-vacuous.",
+      "fixed_by_commit": "6919d6ea860272611427e721f34968953207f036",
+      "regression_tests": [
+        "tests/test_faith_tripwire.py (16 cases: static faith, policy-sourced relief, tripwire on any deviation, dependents notified, sacred tamper logged, cusp readout)",
+        "tests/test_aggregate_grief.py::TestNoFalsePositives::test_high_faith_cohort_resists (rewritten to policy)",
+        "tests/test_core.py::TestGriefCascade::test_faith_resistance (rewritten, now non-vacuous)"
+      ],
+      "residual_risk": "The tripwire detects faith deviation only; other governance fields edited behind the API are not detected (NOE-L-022). The benign benchmark currently sits at a node margin of 0.900, far from the cusp, so the operating point the design intends has not been tuned (NOE-L-023).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Owner review: faith is a grief-relief damper for a zero-trust environment, not something a node earns; the NOE-F-035 repair contradicts that."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 6919d6e: static policy faith, tamper tripwire, cusp readout; negative-controlled (grief_cascade 9 tests fail without it, trust_gate 15)."
+        }
+      ]
     }
   ],
   "current_limitations": [
@@ -1793,6 +1839,14 @@
     {
       "id": "NOE-L-021",
       "statement": "The set of fields providers may emit is enforced by a structural test against an allowlist, not by types. The test knows the three shipped adapters and the current node fields; a new adapter, or a new field with a bespoke rendering, must be added to the allowlist deliberately and its gate reviewed."
+    },
+    {
+      "id": "NOE-L-022",
+      "statement": "The faith tripwire detects deviation of the stored faith value only. Direct edits behind the API to other governance fields (trust, grief, retrieval state, sacred flag) are not detected: there is no keyed integrity seal over a node's governance fields."
+    },
+    {
+      "id": "NOE-L-023",
+      "statement": "The system has not been tuned to its intended operating point: the benign corpus currently leaves a node margin of 0.900 from a cascade. The cusp() readout is deterministic and observable, so it can be probed if exposed and must be kept away from the agent; and any grief input an attacker can influence (the weak operational signals) becomes a lever to purge legitimate memory as the margin narrows."
     }
   ],
   "disclosure_gaps": [
