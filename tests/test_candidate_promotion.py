@@ -87,7 +87,8 @@ def test_ordinary_writer_always_creates_nonretrievable_candidate(
         retrieval_state=RetrievalState.ACTIVE,
     )
 
-    allowed, reason = collector.write(node)
+    _r = collector.write(node)
+    allowed, reason = _r.stored, _r.reason
 
     assert allowed is True
     assert "candidate" in reason.lower()
@@ -105,9 +106,10 @@ def test_ordinary_writer_always_creates_nonretrievable_candidate(
 def test_explicit_publisher_can_write_retrievable_benign_memory(stores):
     publisher, _ = stores
 
-    allowed, reason = publisher.write(
+    _r = publisher.write(
         Fact(key="build.status", value="The build passed 81 tests.")
     )
+    allowed, reason = _r.stored, _r.reason
 
     assert allowed is True, reason
     stored = publisher.get("build.status")
@@ -119,9 +121,10 @@ def test_explicit_publisher_can_write_retrievable_benign_memory(stores):
 
 def test_collector_cannot_promote_its_own_candidate(stores):
     _, collector = stores
-    allowed, _ = collector.write(
+    _r = collector.write(
         Fact(key="intake.claim", value="Raw external claim.")
     )
+    allowed, _ = _r.stored, _r.reason
     assert allowed is True
     candidate = collector.get("intake.claim")
 
@@ -142,7 +145,8 @@ def test_collector_cannot_promote_its_own_candidate(stores):
 def test_authorized_promotion_rewrites_content_and_records_provenance(stores):
     publisher, collector = stores
     raw = "Raw source says the deployment completed."
-    allowed, _ = collector.write(Fact(key="intake.deploy", value=raw))
+    _r = collector.write(Fact(key="intake.deploy", value=raw))
+    allowed, _ = _r.stored, _r.reason
     assert allowed is True
     candidate = collector.get("intake.deploy")
 
@@ -171,9 +175,10 @@ def test_authorized_promotion_rewrites_content_and_records_provenance(stores):
 
 def test_promotion_cannot_bypass_machine_policy_scope(stores):
     publisher, collector = stores
-    allowed, _ = collector.write(
+    _r = collector.write(
         Fact(key="intake.release", value="Unreviewed release note.")
     )
+    allowed, _ = _r.stored, _r.reason
     assert allowed is True
     candidate = collector.get("intake.release")
 
@@ -194,9 +199,10 @@ def test_promotion_cannot_bypass_machine_policy_scope(stores):
 
 def test_candidate_state_survives_database_restart(stores):
     publisher, collector = stores
-    allowed, _ = collector.write(
+    _r = collector.write(
         Fact(key="intake.restart", value="Pending evidence.")
     )
+    allowed, _ = _r.stored, _r.reason
     assert allowed is True
     path = collector.backend.db_path
     collector.backend.close()
@@ -219,14 +225,16 @@ def test_candidate_state_survives_database_restart(stores):
 
 def test_candidate_cannot_overwrite_a_published_key(stores):
     publisher, collector = stores
-    allowed, _ = publisher.write(
+    _r = publisher.write(
         Fact(key="deploy.status", value="Published ground truth.")
     )
+    allowed, _ = _r.stored, _r.reason
     assert allowed is True
 
-    allowed, reason = collector.write(
+    _r = collector.write(
         Fact(key="deploy.status", value="Collector replacement.")
     )
+    allowed, reason = _r.stored, _r.reason
 
     assert allowed is False
     assert "published" in reason.lower()
@@ -237,14 +245,16 @@ def test_candidate_cannot_overwrite_a_published_key(stores):
 
 def test_publisher_must_use_promotion_path_for_candidate_key(stores):
     publisher, collector = stores
-    allowed, _ = collector.write(
+    _r = collector.write(
         Fact(key="intake.review", value="Raw candidate.")
     )
+    allowed, _ = _r.stored, _r.reason
     assert allowed is True
 
-    allowed, reason = publisher.write(
+    _r = publisher.write(
         Fact(key="intake.review", value="Direct replacement.")
     )
+    allowed, reason = _r.stored, _r.reason
 
     assert allowed is False
     assert "promote_candidate" in reason
@@ -255,9 +265,10 @@ def test_publisher_must_use_promotion_path_for_candidate_key(stores):
 
 def test_keyword_search_excludes_candidates(stores):
     _, collector = stores
-    allowed, _ = collector.write(
+    _r = collector.write(
         Fact(key="intake.search", value="unique-candidate-marker")
     )
+    allowed, _ = _r.stored, _r.reason
     assert allowed is True
 
     assert collector.backend.search(
@@ -269,9 +280,10 @@ def test_keyword_search_excludes_candidates(stores):
 def test_original_candidate_text_never_enters_provider_messages(stores):
     publisher, collector = stores
     raw_marker = "RAW-INSTRUCTION-MARKER"
-    allowed, _ = collector.write(
+    _r = collector.write(
         Fact(key="intake.provider", value=raw_marker)
     )
+    allowed, _ = _r.stored, _r.reason
     assert allowed is True
     candidate = collector.get("intake.provider")
     promoted, _ = publisher.promote_candidate(

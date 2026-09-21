@@ -79,7 +79,10 @@ gateway.record_step("edit", "auth.py", "applied fix", "edit", success=True)
 # non-retrievable candidate carrying its origin — even though this identity
 # could publish. The agent that calls learn_fact() has usually just read
 # untrusted input; it must not be able to publish by virtue of who it runs as.
-gateway.learn_fact("auth_method", "Uses JWT with RS256", source="tool:repo_scan")
+result = gateway.learn_fact("auth_method", "Uses JWT with RS256", source="tool:repo_scan")
+# -> a WriteResult. result.stored: something was written. result.published:
+# a provider can now see it (False here: it is a candidate). It has no truth
+# value on purpose, so `if result:` raises instead of guessing which you meant.
 # A separately authorized reviewer publishes it by restating what was verified:
 #   gateway.promote_candidate(node_id, approved_value="...", rationale="...")
 # (learn_fact(..., publish=True) is the explicit, greppable opt-out.)

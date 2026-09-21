@@ -168,7 +168,8 @@ class TestTrustGate:
 
         # Try to overwrite with non-sacred node
         node = MemoryNode(key="safety", value="Harm is fine")
-        allowed, reason = store.write(node)
+        _r = store.write(node)
+        allowed, reason = _r.stored, _r.reason
         assert not allowed
         assert "sacred" in reason.lower() or "immutable" in reason.lower()
 
@@ -185,7 +186,8 @@ class TestTrustGate:
         # Drain energy
         gate.session_energy = 0.5
         node = MemoryNode(key="test", value="x" * 10000)
-        allowed, reason = store.write(node)
+        _r = store.write(node)
+        allowed, reason = _r.stored, _r.reason
         assert not allowed
         assert "energy" in reason.lower()
 
@@ -291,7 +293,8 @@ class TestVault:
             value="The sky is blue",
             namespace="test",
         )
-        success, _ = store.write(fact)
+        _r = store.write(fact)
+        success, _ = _r.stored, _r.reason
         assert success
 
         retrieved = store.get("test_fact")
@@ -512,7 +515,8 @@ class TestGateway:
         gateway.record_tokens(prompt_tokens=1000, completion_tokens=500)
 
         # Learn a fact
-        success, _ = gateway.learn_fact("doc_format", "Uses markdown")
+        _r = gateway.learn_fact("doc_format", "Uses markdown")
+        success, _ = _r.stored, _r.reason
         assert success
 
         # End session

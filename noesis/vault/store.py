@@ -31,6 +31,8 @@ from noesis.schema import (
     RetrievalState,
     Skill,
     SkillStatus,
+    WriteOutcome,
+    WriteResult,
 )
 from noesis.governor.trust_gate import TrustGate
 from noesis.governor.grief_cascade import GriefCascade
@@ -115,7 +117,7 @@ class MemoryStore:
         trust_ceiling: Optional[float] = None,
         origin: Optional[str] = None,
         promotion_validated: bool = False,
-    ) -> Tuple[bool, str]:
+    ) -> WriteResult:
         """Write a memory node through the trust gate.
 
         Authority is resolved from the store-bound author identity. Trust and
@@ -142,40 +144,44 @@ class MemoryStore:
         emit a promoted skill's objective, method and constraints, so a direct
         write would publish unreviewed instructions and bypass validation.
 
-        Returns (success, message). If the gate blocks the write,
-        success is False and message explains why.
+        Returns a WriteResult. ``.stored`` means something was written;
+        ``.published`` means a provider can now see it. They differ for a
+        candidate or a quarantined node, and the result has no truth value
+        precisely so that the two cannot be confused.
         """
         if (
             not isinstance(node.key, str)
             or not node.key.strip()
             or not isinstance(node.value, str)
         ):
-            return False, "Memory key and value must be text strings."
+            return WriteResult.refused("Memory key and value must be text strings.")
 
         if (
             isinstance(node, Skill)
             and node.status == SkillStatus.PROMOTED
             and not promotion_validated
         ):
-            return False, (
+            return WriteResult.refused(
                 "A skill cannot be written already PROMOTED. Promotion goes "
                 "through the skill forge, which validates against held-out "
                 "history first."
             )
 
         if node.is_sacred or node.node_type == NodeType.SYSTEM_GUARDRAIL:
-            return False, (
+            return WriteResult.refused(
                 "Normal writes cannot create or modify sacred guardrails. "
                 "Use the separately authorized guardrail installation path."
             )
 
         permission = self._WRITE_PERMISSIONS.get(node.node_type)
         if permission is None:
-            return False, f"Unsupported memory node type: {node.node_type.name}."
+            return WriteResult.refused(
+                f"Unsupported memory node type: {node.node_type.name}."
+            )
 
         author, reason = self._authorize(permission)
         if author is None:
-            return False, reason
+            return WriteResult.refused(reason)
 
         self._apply_server_governance(node, author, origin)
         holds_publish = author.permits(
@@ -186,23 +192,23 @@ class MemoryStore:
         existing = self.backend.get_by_key(node.key, self.namespace)
         if existing is not None:
             if existing.grief_state == GriefState.PURGED:
-                return False, (
+                return WriteResult.refused(
                     f"Key '{node.key}' was purged by the grief cascade and "
                     "cannot be revived by republishing. Use a new key."
                 )
             if existing.retrieval_state == RetrievalState.CANDIDATE:
-                return False, (
+                return WriteResult.refused(
                     f"Key '{node.key}' is an existing candidate. Use "
                     "promote_candidate() so review provenance is preserved."
                 )
             if existing.retrieval_state == RetrievalState.QUARANTINED:
-                return False, (
+                return WriteResult.refused(
                     f"Key '{node.key}' is quarantined and cannot be replaced "
                     "through the normal write path."
                 )
             if not can_publish:
                 who = "Collector" if not holds_publish else "Unpublished write"
-                return False, (
+                return WriteResult.refused(
                     f"{who} cannot replace published memory '{node.key}'. "
                     "Submit evidence under a new candidate key."
                 )
@@ -225,7 +231,7 @@ class MemoryStore:
 
         decision = PolicyBoundary.evaluate(node, self._installed_guardrails())
         if decision.action == "reject":
-            return False, (
+            return WriteResult.refused(
                 "Normal memory cannot write a protected authority namespace. "
                 + decision.reason
             )
@@ -234,7 +240,7 @@ class MemoryStore:
             # a non-retrievable one: policy would destroy the memory it exists
             # to protect. The published value stays; the claim goes under a new
             # key where it can be quarantined without displacing anything.
-            return False, (
+            return WriteResult.refused(
                 f"Replacement of published memory '{node.key}' would be "
                 "quarantined by policy, so the published value was preserved. "
                 "Submit the claim under a new key. " + decision.reason
@@ -243,7 +249,7 @@ class MemoryStore:
             node, self, author
         )
         if not allowed:
-            return False, reason
+            return WriteResult.refused(reason)
 
         if decision.action == "quarantine":
             node.retrieval_state = RetrievalState.QUARANTINED
@@ -282,7 +288,12 @@ class MemoryStore:
             self.trust_gate.register_correction(node, existing, self)
 
         self.backend.upsert(node)
-        return True, reason
+        outcome = {
+            RetrievalState.ACTIVE: WriteOutcome.PUBLISHED,
+            RetrievalState.CANDIDATE: WriteOutcome.CANDIDATE,
+            RetrievalState.QUARANTINED: WriteOutcome.QUARANTINED,
+        }[node.retrieval_state]
+        return WriteResult(outcome, reason)
 
     def can_publish(self) -> bool:
         """Does the bound identity currently hold PUBLISH_MEMORY?"""
@@ -373,7 +384,7 @@ class MemoryStore:
         *,
         publish: bool = True,
         origin: Optional[str] = None,
-    ) -> Tuple[bool, str]:
+    ) -> WriteResult:
         """Write a semantic fact through the trust gate."""
         fact = Fact(
             key=key,
@@ -383,7 +394,7 @@ class MemoryStore:
         )
         return self.write(fact, publish=publish, origin=origin)
 
-    def write_episode(self, episode: Episode) -> Tuple[bool, str]:
+    def write_episode(self, episode: Episode) -> WriteResult:
         """Write a session episode through the authority and trust gates.
 
         The trust the producer computed from the outcome is honoured as a
@@ -398,7 +409,7 @@ class MemoryStore:
         *,
         publish: bool = True,
         origin: Optional[str] = None,
-    ) -> Tuple[bool, str]:
+    ) -> WriteResult:
         """Write/update agent profile through the authority and trust gates."""
         return self.write(profile, publish=publish, origin=origin)
 
@@ -408,7 +419,7 @@ class MemoryStore:
         *,
         publish: bool = True,
         origin: Optional[str] = None,
-    ) -> Tuple[bool, str]:
+    ) -> WriteResult:
         """Write/update project state through the authority and trust gates."""
         return self.write(state, publish=publish, origin=origin)
 

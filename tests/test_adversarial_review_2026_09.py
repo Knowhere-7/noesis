@@ -108,7 +108,8 @@ def _tokens(nodes):
 
 class TestConfusedDeputy:
     def test_agent_learn_fact_is_candidate_even_with_publish_authority(self, gw):
-        ok, _ = gw.learn_fact("facts.build", "Build 4421 done")
+        _r = gw.learn_fact("facts.build", "Build 4421 done")
+        ok, _ = _r.stored, _r.reason
         assert ok is True
         node = gw.store.get("facts.build")
         assert node.retrieval_state == RetrievalState.CANDIDATE
@@ -116,7 +117,8 @@ class TestConfusedDeputy:
         assert all(n.key != "facts.build" for n in gw.get_context_nodes())
 
     def test_publisher_can_opt_in_to_direct_publication(self, gw):
-        ok, _ = gw.learn_fact("facts.build", "Build 4421 done", publish=True)
+        _r = gw.learn_fact("facts.build", "Build 4421 done", publish=True)
+        ok, _ = _r.stored, _r.reason
         assert ok is True
         node = gw.store.get("facts.build")
         assert node.retrieval_state == RetrievalState.ACTIVE
@@ -125,13 +127,15 @@ class TestConfusedDeputy:
 
     def test_agent_write_cannot_replace_published_memory(self, gw):
         gw.learn_fact("facts.build", "original", publish=True)
-        ok, reason = gw.learn_fact("facts.build", "attacker value")
+        _r = gw.learn_fact("facts.build", "attacker value")
+        ok, reason = _r.stored, _r.reason
         assert ok is False
         assert "published" in reason.lower()
         assert gw.store.get("facts.build").value == "original"
 
     def test_store_write_can_be_forced_to_candidate(self, owner):
-        ok, _ = owner.write(Fact(key="facts.x", value="v"), publish=False)
+        _r = owner.write(Fact(key="facts.x", value="v"), publish=False)
+        ok, _ = _r.stored, _r.reason
         assert ok is True
         assert owner.get("facts.x").retrieval_state == RetrievalState.CANDIDATE
 
@@ -247,7 +251,8 @@ class TestGrief:
         ok, reason = owner.register_dependency(parent.id, dep.id)
         assert ok, reason
 
-        ok, reason = owner.write(Fact(key="facts.port", value="9090"))
+        _r = owner.write(Fact(key="facts.port", value="9090"))
+        ok, reason = _r.stored, _r.reason
         assert ok, reason
 
         corrected = owner.get("facts.port")
@@ -381,13 +386,14 @@ class TestTrust:
 class TestSkillReplay:
     def _episodes(self, owner, spec):
         for i, (task, score, tools) in enumerate(spec):
-            ok, reason = owner.write(
+            _r = owner.write(
                 Episode(
                     key=f"episode:{i}", value=f"s{i}", namespace=NS,
                     task_description=task, outcome_score=score,
                     tools_used=list(tools),
                 )
             )
+            ok, reason = _r.stored, _r.reason
             assert ok, reason
 
     HISTORY = [

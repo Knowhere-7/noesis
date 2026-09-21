@@ -207,9 +207,10 @@ def test_candidate_promotion_requires_value_to_change(tmp_path):
 
     try:
         raw_value = "Build 4421 completed successfully."
-        accepted, _ = collector.write(
+        _r = collector.write(
             Fact(key="intake.build", value=raw_value)
         )
+        accepted, _ = _r.stored, _r.reason
         assert accepted is True
         candidate = collector.get("intake.build")
         assert candidate.retrieval_state == RetrievalState.CANDIDATE

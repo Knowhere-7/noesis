@@ -31,6 +31,7 @@ from noesis.schema import (
     ProjectState,
     Skill,
     SkillStatus,
+    WriteResult,
 )
 from noesis.vault.store import MemoryStore
 from noesis.vault.sqlite_backend import SQLiteBackend
@@ -164,10 +165,10 @@ class RetrievalGateway:
         episode = self.autopsy.to_episode(
             trace, result, self.store.namespace
         )
-        stored, why = self.store.write_episode(episode)
-        if not stored:
+        written = self.store.write_episode(episode)
+        if not written.stored:
             logger.warning(
-                "Episode '%s' not stored: %s", episode.key, why
+                "Episode '%s' not stored: %s", episode.key, written.reason
             )
 
         # Update trust on facts the session referenced. These signals are
@@ -350,7 +351,7 @@ class RetrievalGateway:
         source: str = "session",
         *,
         publish: bool = False,
-    ) -> Tuple[bool, str]:
+    ) -> WriteResult:
         """Record a fact learned during a session, as EVIDENCE by default.
 
         This is the confused-deputy boundary (R1). The agent that calls this is
@@ -368,7 +369,7 @@ class RetrievalGateway:
         the identity in use.
         """
         episode_id = self._session_id if self._session_trace else None
-        success, reason = self.store.write_fact(
+        result = self.store.write_fact(
             key=key,
             value=value,
             source_episode_id=episode_id,
@@ -376,7 +377,7 @@ class RetrievalGateway:
             origin=source,
         )
 
-        if success and self._session_trace:
+        if result.stored and self._session_trace:
             self._session_trace.steps.append({
                 "action": "learn_fact",
                 "input": key,
@@ -386,7 +387,7 @@ class RetrievalGateway:
                 "timestamp": time.time(),
             })
 
-        return success, reason
+        return result
 
     def record_step(
         self,
@@ -492,7 +493,7 @@ class RetrievalGateway:
         *,
         source: str = "session",
         publish: bool = False,
-    ) -> Tuple[bool, str]:
+    ) -> WriteResult:
         """Set or update the agent profile — as EVIDENCE unless ``publish``.
 
         The profile is always loaded into context, first after guardrails, so it
@@ -521,7 +522,7 @@ class RetrievalGateway:
         *,
         source: str = "session",
         publish: bool = False,
-    ) -> Tuple[bool, str]:
+    ) -> WriteResult:
         """Set or update the project state — as EVIDENCE unless ``publish``.
 
         Same rule as ``set_profile``: always-loaded context is published by an

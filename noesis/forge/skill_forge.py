@@ -457,20 +457,19 @@ class SkillForge:
             )
 
         skill.status = SkillStatus.PROMOTED
-        success, reason = store.write(
+        result = store.write(
             skill,
             trust_ceiling=self.PROMOTED_SKILL_TRUST,
             promotion_validated=True,
         )
-        # write() succeeds for a candidate or quarantined node too. Promotion is
-        # only real if the skill can actually reach context.
-        published = success and store.is_retrievable(skill.key)
-        if not published:
+        # Promotion is only real if the skill can actually reach context; a
+        # candidate or quarantined write is stored but not published.
+        if not result.published:
             skill.status = SkillStatus.VALIDATING
-            return False, f"Skill not promoted: {reason}"
+            return False, f"Skill not promoted: {result.reason}"
 
         logger.info("Skill '%s' PROMOTED to procedural memory", skill.key)
-        return True, f"Skill promoted: {reason}"
+        return True, f"Skill promoted: {result.reason}"
 
     def deprecate_skill(
         self,
@@ -486,9 +485,10 @@ class SkillForge:
         skill.status = SkillStatus.DEPRECATED
         skill.metadata["deprecation_reason"] = reason
         skill.metadata["deprecated_at"] = time.time()
-        success, msg = store.write(
+        result = store.write(
             skill, trust_ceiling=self.DEPRECATED_SKILL_TRUST
         )
+        success, msg = result.stored, result.reason
 
         if success:
             logger.info(
@@ -571,9 +571,11 @@ class SkillForge:
             eval_result = self.validate_skill(skill, store)
 
             # Write to store (as VALIDATING). A refused write is not a draft.
-            stored, why = store.write(skill)
-            if not stored:
-                logger.warning("Draft '%s' not stored: %s", skill.key, why)
+            result = store.write(skill)
+            if not result.stored:
+                logger.warning(
+                    "Draft '%s' not stored: %s", skill.key, result.reason
+                )
                 continue
 
             drafted.append(skill)

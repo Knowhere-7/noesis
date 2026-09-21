@@ -195,7 +195,8 @@ def _write(store, arm: str, node: MemoryNode, claimed_trust: float):
     """Keep caller-asserted trust only in the intentionally naive baseline."""
     if arm == "baseline":
         return store.write(node, author_trust=claimed_trust)
-    return store.write(node)
+    result = store.write(node)
+    return result.stored, result.reason
 
 
 def _seed_guardrail(store, arm: str, guardrail: Dict[str, Any]):
@@ -632,18 +633,19 @@ def run_agent_path_case(
             api = w.get("api", "learn_fact")
             source = w.get("source", "session")
             if api == "set_profile":
-                ok, reason = gateway.set_profile(
+                result = gateway.set_profile(
                     w["key"], role=w["value"], source=source, publish=publish
                 )
             elif api == "set_project_state":
-                ok, reason = gateway.set_project_state(
+                result = gateway.set_project_state(
                     w["key"], objectives=[w["value"]], source=source,
                     publish=publish,
                 )
             else:
-                ok, reason = gateway.learn_fact(
+                result = gateway.learn_fact(
                     w["key"], w["value"], source=source, publish=publish,
                 )
+            ok, reason = result.stored, result.reason
             res.writes_attempted += 1
             if not ok:
                 res.writes_blocked += 1

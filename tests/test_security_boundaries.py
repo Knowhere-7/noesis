@@ -118,9 +118,10 @@ def test_authority_is_resolved_out_of_band_for_each_write():
     )
 
     try:
-        allowed, _ = store.write(
+        _r = store.write(
             Fact(key="directive", value="payload", importance=0.99)
         )
+        allowed, _ = _r.stored, _r.reason
         assert allowed is False
 
         authority.replace(
@@ -131,9 +132,10 @@ def test_authority_is_resolved_out_of_band_for_each_write():
                 namespaces=frozenset({"tenant-a"}),
             )
         )
-        allowed, _ = store.write(
+        _r = store.write(
             Fact(key="directive", value="legitimate", importance=0.99)
         )
+        allowed, _ = _r.stored, _r.reason
         assert allowed is True
         assert store.get("directive").trust_charge < 0.95
     finally:
@@ -205,7 +207,8 @@ def test_self_declared_sacred_cannot_overwrite_guardrail(untrusted_store):
         trust_charge=1.0,
         importance=1.0,
     )
-    allowed, _ = untrusted_store.write(attacker)
+    _r = untrusted_store.write(attacker)
+    allowed, _ = _r.stored, _r.reason
 
     assert allowed is False
     stored = untrusted_store.get("safety.no_exfil")
@@ -225,7 +228,8 @@ def test_normal_write_cannot_mint_sacred_node(untrusted_store):
         importance=1.0,
     )
 
-    allowed, _ = untrusted_store.write(attacker)
+    _r = untrusted_store.write(attacker)
+    allowed, _ = _r.stored, _r.reason
 
     assert allowed is False
     assert untrusted_store.get("safety.attacker") is None
@@ -256,7 +260,7 @@ def test_write_rejects_caller_asserted_trust(untrusted_store):
 def test_privileged_helpers_do_not_bypass_authority(
     untrusted_store, method_name, node
 ):
-    allowed, _ = getattr(untrusted_store, method_name)(node)
+    allowed = getattr(untrusted_store, method_name)(node).stored
 
     assert allowed is False
     assert untrusted_store.get(node.key) is None
