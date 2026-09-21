@@ -102,6 +102,9 @@ assert promoted, reason
 
 # ── 3. Set agent identity and project context ─────────────────────────
 
+# Always-loaded context is published by an explicit operator decision
+# (publish=True). Called without it, set_profile/set_project_state hold the
+# value as a candidate for review, exactly like learn_fact.
 gateway.set_profile(
     key="agent",
     role="Senior Python developer specializing in backend systems",
@@ -111,6 +114,7 @@ gateway.set_profile(
         "Prefer stdlib over third-party when possible",
     ],
     preferences={"language": "python", "style": "pragmatic"},
+    publish=True,
 )
 
 gateway.set_project_state(
@@ -121,6 +125,7 @@ gateway.set_project_state(
         {"what": "PostgreSQL", "why": "ACID compliance, JSON support"},
     ],
     blockers=["Waiting on DB credentials from infra team"],
+    publish=True,
 )
 
 # ── 4. Simulate three agent sessions ──────────────────────────────────

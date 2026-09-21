@@ -533,6 +533,7 @@ class TestGateway:
             "agent",
             role="Senior Python developer",
             constraints=["Follow PEP 8"],
+            publish=True,   # operator configuration; agent calls stay evidence
         )
         context = gateway.get_context()
         assert "Python" in context or "agent" in context

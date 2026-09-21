@@ -422,7 +422,13 @@ class SkillForge:
         A promoted skill is stored at PROMOTED_SKILL_TRUST regardless of who
         promotes it: its trust is earned by later performance, not conferred by
         the identity that pressed the button.
+
+        The evidence is RECOMPUTED here from the store. ``shadow_runs``,
+        ``shadow_score`` and the lift live on the skill object, so a caller
+        could set them to anything; promotion must not rest on numbers the
+        subject reported about itself.
         """
+        self.validate_skill(skill, store)
         if skill.shadow_runs < self.MIN_SHADOW_RUNS:
             return False, (
                 f"Need {self.MIN_SHADOW_RUNS} shadow runs, "
@@ -446,7 +452,9 @@ class SkillForge:
 
         skill.status = SkillStatus.PROMOTED
         success, reason = store.write(
-            skill, trust_ceiling=self.PROMOTED_SKILL_TRUST
+            skill,
+            trust_ceiling=self.PROMOTED_SKILL_TRUST,
+            promotion_validated=True,
         )
 
         if success:

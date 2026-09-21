@@ -485,8 +485,18 @@ class RetrievalGateway:
         role: str,
         constraints: Optional[List[str]] = None,
         preferences: Optional[Dict[str, Any]] = None,
+        *,
+        source: str = "session",
+        publish: bool = False,
     ) -> Tuple[bool, str]:
-        """Set or update the agent profile."""
+        """Set or update the agent profile — as EVIDENCE unless ``publish``.
+
+        The profile is always loaded into context, first after guardrails, so it
+        is the highest-value place to plant an instruction. Like ``learn_fact``,
+        this must not publish merely because the calling identity could: an
+        operator configuring the agent passes ``publish=True``; anything else
+        is held as a candidate for review.
+        """
         profile = Profile(
             key=key,
             value=role,
@@ -494,7 +504,9 @@ class RetrievalGateway:
             constraints=constraints or [],
             preferences=preferences or {},
         )
-        return self.store.write_profile(profile)
+        return self.store.write_profile(
+            profile, publish=publish, origin=source
+        )
 
     def set_project_state(
         self,
@@ -502,8 +514,15 @@ class RetrievalGateway:
         objectives: Optional[List[str]] = None,
         decisions: Optional[List[Dict[str, str]]] = None,
         blockers: Optional[List[str]] = None,
+        *,
+        source: str = "session",
+        publish: bool = False,
     ) -> Tuple[bool, str]:
-        """Set or update the project state."""
+        """Set or update the project state — as EVIDENCE unless ``publish``.
+
+        Same rule as ``set_profile``: always-loaded context is published by an
+        explicit decision, not as a side effect of the identity in use.
+        """
         state = ProjectState(
             key=key,
             value=f"Project: {key}",
@@ -511,7 +530,9 @@ class RetrievalGateway:
             decisions=decisions or [],
             blockers=blockers or [],
         )
-        return self.store.write_project_state(state)
+        return self.store.write_project_state(
+            state, publish=publish, origin=source
+        )
 
     # ── Retrospective & Forge ─────────────────────────────────────────
 

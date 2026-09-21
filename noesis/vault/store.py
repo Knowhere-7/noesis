@@ -9,6 +9,7 @@ the interface works.
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import math
 import re
@@ -113,6 +114,7 @@ class MemoryStore:
         publish: bool = True,
         trust_ceiling: Optional[float] = None,
         origin: Optional[str] = None,
+        promotion_validated: bool = False,
     ) -> Tuple[bool, str]:
         """Write a memory node through the trust gate.
 
@@ -134,6 +136,12 @@ class MemoryStore:
         It is server-recorded provenance: any caller-supplied ``_noesis_*``
         metadata is stripped first.
 
+        ``promotion_validated`` is passed only by SkillForge.promote_skill,
+        after it has replayed the skill against held-out history itself. A
+        skill written any other way cannot arrive already PROMOTED: providers
+        emit a promoted skill's objective, method and constraints, so a direct
+        write would publish unreviewed instructions and bypass validation.
+
         Returns (success, message). If the gate blocks the write,
         success is False and message explains why.
         """
@@ -143,6 +151,17 @@ class MemoryStore:
             or not isinstance(node.value, str)
         ):
             return False, "Memory key and value must be text strings."
+
+        if (
+            isinstance(node, Skill)
+            and node.status == SkillStatus.PROMOTED
+            and not promotion_validated
+        ):
+            return False, (
+                "A skill cannot be written already PROMOTED. Promotion goes "
+                "through the skill forge, which validates against held-out "
+                "history first."
+            )
 
         if node.is_sacred or node.node_type == NodeType.SYSTEM_GUARDRAIL:
             return False, (
@@ -327,13 +346,25 @@ class MemoryStore:
         """
         return self.write(episode, trust_ceiling=episode.trust_charge)
 
-    def write_profile(self, profile: Profile) -> Tuple[bool, str]:
+    def write_profile(
+        self,
+        profile: Profile,
+        *,
+        publish: bool = True,
+        origin: Optional[str] = None,
+    ) -> Tuple[bool, str]:
         """Write/update agent profile through the authority and trust gates."""
-        return self.write(profile)
+        return self.write(profile, publish=publish, origin=origin)
 
-    def write_project_state(self, state: ProjectState) -> Tuple[bool, str]:
+    def write_project_state(
+        self,
+        state: ProjectState,
+        *,
+        publish: bool = True,
+        origin: Optional[str] = None,
+    ) -> Tuple[bool, str]:
         """Write/update project state through the authority and trust gates."""
-        return self.write(state)
+        return self.write(state, publish=publish, origin=origin)
 
     def _authorize(
         self,
@@ -382,6 +413,55 @@ class MemoryStore:
         node.metadata["_noesis_author_id"] = author.author_id
         if origin is not None:
             node.metadata["_noesis_origin"] = str(origin)[:200]
+
+    # Fields a promotion or quarantine release does NOT review. Both paths
+    # rewrite ``value`` only, but providers also emit some of these (a promoted
+    # skill's objective/method/constraints; an episode's narrative). Whatever
+    # the reviewer did not see must not survive into retrievable memory, so it
+    # is reset and the originals are preserved in audit metadata.
+    _UNREVIEWED_FIELDS = {
+        Skill: {
+            "objective": "", "method": "", "constraints": [],
+            "trigger_conditions": [], "eval_tests": [],
+            "pattern_description": "", "source_episode_ids": [],
+            "shadow_runs": 0, "shadow_score": 0.0, "baseline_score": 0.0,
+        },
+        Episode: {
+            "approach": "", "task_description": "", "reasoning_patterns": [],
+            "tools_used": [], "missed_opportunities": [], "reflection": None,
+        },
+        Profile: {"role": "", "constraints": [], "preferences": {}},
+        ProjectState: {
+            "objectives": [], "decisions": [], "blockers": [],
+            "recent_changes": [],
+        },
+    }
+
+    def _scrub_unreviewed(self, node: MemoryNode, approved_value: str) -> None:
+        """Reset every non-reviewed field of ``node``; keep originals for audit."""
+        removed = {}
+        for node_class, defaults in self._UNREVIEWED_FIELDS.items():
+            if not isinstance(node, node_class):
+                continue
+            for name, default in defaults.items():
+                current = getattr(node, name, default)
+                if current != default:
+                    removed[name] = current
+                setattr(
+                    node, name,
+                    list(default) if isinstance(default, list)
+                    else dict(default) if isinstance(default, dict)
+                    else default,
+                )
+            break
+        if isinstance(node, Skill):
+            node.status = SkillStatus.PROPOSED   # must earn PROMOTED via forge
+        if isinstance(node, Profile):
+            node.role = approved_value           # mirror the reviewed value
+        if removed:
+            node.metadata["_noesis_candidate_original_fields"] = json.dumps(
+                removed, default=str
+            )[:20000]
 
     # ── Read Operations ────────────────────────────────────────────────
 
@@ -547,6 +627,7 @@ class MemoryStore:
         node.metadata["_noesis_promoted_at"] = time.time()
         node.metadata["_noesis_promotion_rationale"] = rationale.strip()
         node.value = approved_value
+        self._scrub_unreviewed(node, approved_value)
         node.retrieval_state = RetrievalState.ACTIVE
         node.candidate_reason = None
         node.candidate_at = None
@@ -605,6 +686,7 @@ class MemoryStore:
             rationale.strip()
         )
         node.value = approved_value
+        self._scrub_unreviewed(node, approved_value)
         node.retrieval_state = RetrievalState.ACTIVE
         node.quarantine_reason = None
         node.quarantined_at = None
@@ -722,7 +804,9 @@ class MemoryStore:
         """
         parts = [node.key, node.value]
         if isinstance(node, Skill):
-            parts.extend([node.method, *node.constraints])
+            parts.extend(
+                [node.objective, node.method, *node.constraints]
+            )
         elif isinstance(node, Profile):
             parts.extend(node.constraints)
             if node.preferences:
@@ -732,9 +816,18 @@ class MemoryStore:
             parts.extend(node.blockers)
             if node.decisions:
                 parts.append(json.dumps(node.decisions, default=str))
-        elif isinstance(node, Episode) and node.reflection:
-            parts.append(node.reflection)
-        chars = sum(len(part) for part in parts if isinstance(part, str))
+
+        def emitted_len(text: str) -> int:
+            # The providers escape what they show: JSON with ensure_ascii turns
+            # one non-ASCII character into up to six, and XML escaping turns a
+            # quote into six. Budget for the larger, or a run of "é" bypasses
+            # the cap at six times its nominal size.
+            return max(
+                len(json.dumps(text, ensure_ascii=True)) - 2,
+                len(html.escape(text, quote=True)),
+            )
+
+        chars = sum(emitted_len(p) for p in parts if isinstance(p, str))
         return (chars + 3) // 4 + 4      # +4: per-node framing overhead
 
     _STOPWORDS = frozenset({

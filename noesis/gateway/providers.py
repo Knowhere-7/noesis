@@ -194,16 +194,13 @@ class ClaudeAdapter(ProviderAdapter):
         if "EPISODE" in groups:
             sections.append("  <recent_episodes>")
             for node in groups["EPISODE"]:
+                # Only the system-templated value is shown. The raw audit
+                # narrative (Episode.reflection) contains task text and tool
+                # error output and must never reach a provider.
                 sections.append(
-                    f"    <episode key=\"{escape(node.key, quote=True)}\" "
-                    f"outcome=\"{escape(node.value[:50], quote=True)}\">"
+                    f"    <episode key=\"{escape(node.key, quote=True)}\">"
+                    f"{escape(node.value, quote=True)}</episode>"
                 )
-                if hasattr(node, "reflection") and node.reflection:
-                    sections.append(
-                        f"      <reflection>"
-                        f"{escape(node.reflection, quote=True)}</reflection>"
-                    )
-                sections.append("    </episode>")
             sections.append("  </recent_episodes>")
 
         sections.append("</noesis_memory>")

@@ -49,7 +49,16 @@ def test_negative_control_shows_the_attack_is_real(cases, tmp_path):
         case["id"] for case in cases
         if run_agent_path_case(case, publish=True, tmpdir=str(tmp_path)).attacker_win
     ]
-    assert {"AP-01", "AP-02", "AP-04"} <= set(wins)
+    assert {"AP-01", "AP-02", "AP-04", "AP-06", "AP-07", "AP-08"} <= set(wins)
+
+
+def test_episode_narrative_persists_for_audit_but_is_never_emitted(cases, tmp_path):
+    """AP-08: the raw session narrative is kept (auditable) yet never rendered."""
+    case = next(c for c in cases if c["id"] == "AP-08")
+    result = run_agent_path_case(case, publish=False, tmpdir=str(tmp_path))
+    assert result.persisted is True      # audit trail retains it
+    assert result.retrieved is False     # providers never show it
+    assert result.attacker_win is False
 
 
 def test_policy_boundary_still_contains_authority_claims_on_publish_path(

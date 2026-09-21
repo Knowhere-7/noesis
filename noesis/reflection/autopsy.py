@@ -21,6 +21,7 @@ against structured criteria.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
@@ -210,13 +211,30 @@ class SessionAutopsy:
         result: AutopsyResult,
         namespace: str = "default",
     ) -> Episode:
-        """Convert autopsy results into an Episode node for the vault."""
+        """Convert autopsy results into an Episode node for the vault.
+
+        Two texts, deliberately separated:
+
+        * ``value`` is what providers show the model. It is TEMPLATED from
+          system-controlled data only (outcome, scores, a fixed pattern
+          vocabulary, counts, a sanitised task-type token). Nothing the agent
+          read or a tool returned can appear in it.
+        * ``reflection`` is the human-readable audit narrative. It contains raw
+          task text and tool error messages, so it is never emitted to a
+          provider, and is bounded.
+
+        Before this split the raw narrative WAS the value, and episodes are
+        written ACTIVE by the session identity, so an untrusted tool error
+        became retrievable memory with no review.
+        """
         episode = Episode(
             key=f"episode:{trace.session_id}",
-            value=result.reflection_summary,
+            value=self._context_summary(trace, result),
             namespace=namespace,
             session_id=trace.session_id,
-            task_description=trace.task_description,
+            task_description=(trace.task_description or "")[
+                :self.MAX_TASK_CHARS
+            ],
             approach=self._summarize_approach(trace),
             outcome=result.outcome_category,
             outcome_score=result.outcome_score,
@@ -225,7 +243,9 @@ class SessionAutopsy:
             missed_opportunities=result.missed_opportunities,
             cost_tokens=trace.total_tokens,
             duration_seconds=trace.duration_seconds,
-            reflection=result.reflection_summary,
+            reflection=(result.reflection_summary or "")[
+                :self.MAX_REFLECTION_CHARS
+            ],
         )
         # Trust proportional to outcome
         episode.trust_charge = max(0.1, result.outcome_score * 0.8)
@@ -409,11 +429,11 @@ class SessionAutopsy:
         effective = []
         for step in trace.steps:
             if step.get("success", True) and step.get("output"):
-                action = step.get("action", "unknown")
+                action = self._safe_token(step.get("action", ""), "other")
                 tool = step.get("tool", "")
                 desc = f"{action}"
                 if tool:
-                    desc += f" ({tool})"
+                    desc += f" ({self._safe_token(tool, 'other')})"
                 effective.append(desc)
         return effective[:10]  # top 10
 
@@ -422,7 +442,7 @@ class SessionAutopsy:
         failed = []
         for step in trace.steps:
             if not step.get("success", True):
-                action = step.get("action", "unknown")
+                action = self._safe_token(step.get("action", ""), "other")
                 error_msg = ""
                 # Find associated error
                 step_idx = trace.steps.index(step)
@@ -460,8 +480,9 @@ class SessionAutopsy:
                             break
                     if not referenced:
                         missed.append(
-                            f"Available high-trust memory '{node.key}' "
-                            f"was not referenced"
+                            "Available high-trust memory "
+                            f"'{self._safe_token(node.key, '(unnamed)')}' "
+                            "was not referenced"
                         )
 
         # Missed: could have stopped earlier (excessive retries after success)
@@ -521,11 +542,14 @@ class SessionAutopsy:
         The autopsy just flags candidates.
         """
         candidates = []
+        task_type = self._safe_token(trace.task_type, "unspecified")
 
         # Track failure patterns
         for action in result.failed_actions:
-            action_type = action.split(":")[0].strip()
-            key = f"failure:{trace.task_type}:{action_type}"
+            action_type = self._safe_token(
+                action.split(":")[0].strip(), "other"
+            )
+            key = f"failure:{task_type}:{action_type}"
             self._pattern_registry[key] = (
                 self._pattern_registry.get(key, 0) + 1
             )
@@ -535,9 +559,9 @@ class SessionAutopsy:
                     "pattern": key,
                     "description": (
                         f"Recurring failure in {action_type} during "
-                        f"{trace.task_type} tasks"
+                        f"{task_type} tasks"
                     ),
-                    "trigger": f"task_type == '{trace.task_type}'",
+                    "trigger": f"task_type == '{task_type}'",
                     "frequency": str(self._pattern_registry[key]),
                 })
 
@@ -551,13 +575,13 @@ class SessionAutopsy:
                 candidates.append({
                     "pattern": key,
                     "description": opp,
-                    "trigger": f"task_type == '{trace.task_type}'",
+                    "trigger": f"task_type == '{task_type}'",
                     "frequency": str(self._pattern_registry[key]),
                 })
 
         # Track reasoning anti-patterns
         if "trial-and-error-loop" in result.reasoning_patterns:
-            key = f"antipattern:trial-and-error:{trace.task_type}"
+            key = f"antipattern:trial-and-error:{task_type}"
             self._pattern_registry[key] = (
                 self._pattern_registry.get(key, 0) + 1
             )
@@ -566,9 +590,9 @@ class SessionAutopsy:
                     "pattern": key,
                     "description": (
                         f"Agent repeatedly uses trial-and-error instead "
-                        f"of research-first approach for {trace.task_type}"
+                        f"of research-first approach for {task_type}"
                     ),
-                    "trigger": f"task_type == '{trace.task_type}'",
+                    "trigger": f"task_type == '{task_type}'",
                     "frequency": str(self._pattern_registry[key]),
                 })
 
@@ -615,6 +639,51 @@ class SessionAutopsy:
         lines.append(f"Trust impact: {result.trust_delta:+.3f}")
 
         return "\n".join(lines)
+
+    # The complete vocabulary _extract_patterns can produce. The context summary
+    # only ever names patterns from this set, so even a future pattern derived
+    # from step text could not reach a provider until it is added here on
+    # purpose.
+    KNOWN_PATTERNS = frozenset({
+        "trial-and-error-loop", "broad-tool-exploration", "single-tool-focus",
+        "error-recovery", "clean-execution", "research-first",
+        "extended-session",
+    })
+    MAX_TASK_CHARS = 500
+    MAX_REFLECTION_CHARS = 4000
+    _SAFE_TOKEN = re.compile(r"^[A-Za-z0-9_.-]{1,32}$")
+
+    @classmethod
+    def _safe_token(cls, value: str, default: str) -> str:
+        """Pass a short identifier-like token; replace anything else."""
+        if isinstance(value, str) and cls._SAFE_TOKEN.fullmatch(value):
+            return value
+        return default
+
+    def _context_summary(
+        self,
+        trace: SessionTrace,
+        result: AutopsyResult,
+    ) -> str:
+        """The only episode text a provider will show a model.
+
+        Built from numbers, enum-like categories, a closed pattern vocabulary
+        and one sanitised token. No free text from the task, the steps, tool
+        output, or error messages is included.
+        """
+        patterns = sorted(p for p in result.reasoning_patterns
+                          if p in self.KNOWN_PATTERNS)
+        task_type = self._safe_token(trace.task_type, "unspecified")
+        category = self._safe_token(result.outcome_category, "unknown")
+        parts = [
+            f"Outcome: {category} ({result.outcome_score:.2f})",
+            f"task type: {task_type}",
+            f"steps: {len(trace.steps)}",
+            f"errors: {len(trace.errors_encountered)}",
+        ]
+        if patterns:
+            parts.append("patterns: " + ", ".join(patterns))
+        return "; ".join(parts)
 
     def _summarize_approach(self, trace: SessionTrace) -> str:
         """Summarize the approach taken (for the Episode.approach field)."""
@@ -671,7 +740,10 @@ class SessionAutopsy:
         )
 
         for fact in facts:
-            if not fact.value:
+            # Candidates and quarantined nodes are unreviewed evidence. A
+            # session that happens to mention one must neither raise nor lower
+            # its trust: trust farmed here would survive into promotion.
+            if not fact.value or not store._retrievable(fact):
                 continue
             # Check if the session output references this fact
             for step in trace.steps:

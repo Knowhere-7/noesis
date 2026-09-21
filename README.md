@@ -59,7 +59,9 @@ gateway.install_guardrail(
 )
 
 # Set agent identity
-gateway.set_profile("agent", role="Senior Python developer")
+# Always-loaded context is published by an explicit operator decision.
+# Without publish=True this is held as a candidate, like learn_fact().
+gateway.set_profile("agent", role="Senior Python developer", publish=True)
 
 # Start a session
 gateway.start_session(task="Fix the auth bug")
@@ -154,6 +156,23 @@ compatibility Unicode) — this defeats a crafted artifact passing through
 unread, not a synonym swap or a malicious reviewer
 ([NOE-F-026](FAILURE_LEDGER.md#noe-f-026--candidate-promotion-does-not-enforce-a-changed-value),
 [NOE-L-014](FAILURE_LEDGER.md)).
+
+**What can reach the model, and what gates each field.** Providers render only
+these fields, and a test (`test_provider_emission_matches_the_reviewed_allowlist`)
+fails if a formatter starts emitting another:
+
+| Node | Emitted | Gate |
+|---|---|---|
+| Guardrail | key, value | installed through `INSTALL_GUARDRAIL` |
+| Profile | value | reviewed at promotion; `set_profile` is evidence unless `publish=True` |
+| Project state | key, value | reviewed at promotion; evidence unless `publish=True` |
+| Fact | key, value | reviewed at promotion; `learn_fact` is evidence unless `publish=True` |
+| Episode | key, value | `value` is **templated from system data only** (outcome, scores, a closed pattern vocabulary, counts); the raw narrative stays in a non-emitted audit field |
+| Skill | key, objective, method, constraints | status `PROMOTED` is reachable only through `SkillForge.promote_skill`, which re-derives its own held-out evidence; promoting a candidate resets these fields |
+
+Promotion and quarantine release rewrite `value` only, so every other field of
+the node is reset and the original preserved in audit metadata — reviewed text
+is the only text that survives.
 
 **The publisher is inside the trust boundary, and so is the agent if it
 publishes.** A process holding `publish_memory` that acts on untrusted input is

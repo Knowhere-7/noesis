@@ -343,13 +343,20 @@ class TestTrust:
         assert episode.trust_charge <= 0.8 + 1e-9
 
     def test_promoted_skill_trust_is_capped_at_half(self, owner):
+        # Evidence must be real: promote_skill recomputes it from history and
+        # ignores validation fields set on the object.
+        for i, (task, score) in enumerate([
+            ("deploy a", 0.1), ("deploy b", 0.1), ("deploy c", 0.1),
+            ("write docs", 0.9), ("review pr", 0.9),
+        ]):
+            owner.write(Episode(
+                key=f"episode:{i}", value=f"s{i}", namespace=NS,
+                task_description=task, outcome_score=score,
+            ))
         skill = Skill(
             key="skill:x", value="v", namespace=NS,
-            status=SkillStatus.VALIDATING,
+            trigger_conditions=["task contains 'deploy'"],
         )
-        skill.shadow_runs = 5
-        skill.shadow_score = 0.9
-        skill.metadata["shadow_lift"] = 0.3
         ok, reason = SkillForge().promote_skill(skill, owner)
         assert ok, reason
         assert owner.get("skill:x").trust_charge == pytest.approx(0.5)
@@ -450,10 +457,19 @@ class TestSkillReplay:
         assert result.passed is False
 
     def test_promotion_requires_positive_lift(self, owner):
-        skill = Skill(key="skill:y", value="v", namespace=NS)
-        skill.shadow_runs = 5
-        skill.shadow_score = 0.9
-        skill.metadata["shadow_lift"] = 0.0
+        # A trigger that fires on everything passes F1 but has no lift over
+        # the no-skill failure rate, and must not be promoted.
+        self._episodes(
+            owner,
+            [
+                ("deploy service a", 0.1, []),
+                ("deploy service b", 0.1, []),
+                ("deploy service c", 0.1, []),
+                ("write service docs", 0.9, []),
+                ("review service pr", 0.9, []),
+            ],
+        )
+        skill = self._skill(["task contains 'service'"])
         ok, reason = SkillForge().promote_skill(skill, owner)
         assert ok is False
         assert "baseline" in reason.lower()
