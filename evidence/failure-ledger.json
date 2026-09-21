@@ -1387,6 +1387,320 @@
           "note": "Repaired in 115e126; regression tests added."
         }
       ]
+    },
+    {
+      "id": "NOE-F-038",
+      "title": "Promotion and quarantine release reviewed only `value`; other emitted fields passed through unreviewed",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Only text an authorized reviewer has seen and restated becomes retrievable memory.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "promote_candidate() and release_quarantined() rewrite `value` and nothing else. Providers also emit a promoted skill's objective, method and constraints and (in the Claude adapter) an episode's reflection. A candidate carrying attacker text in one of those fields kept it through promotion.",
+      "observed_impact": "A reviewer approving a benign restated value published the collector's unreviewed instructions in the fields they never saw. The restatement control of the original NOE-F-026 repair did not cover them.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/vault/store.py",
+        "path:noesis/gateway/providers.py"
+      ],
+      "resolution": "MemoryStore._scrub_unreviewed() resets every non-reviewed field of Skill, Episode, Profile and ProjectState on promotion and release, returns a skill to PROPOSED, mirrors the reviewed value into Profile.role, and preserves the discarded originals in _noesis_candidate_original_fields for audit. The set of emitted fields is now an audited allowlist enforced by a structural test.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestPromotionScrub (4 cases)",
+        "tests/test_second_wave_hardening.py::test_provider_emission_matches_the_reviewed_allowlist (6 cases)"
+      ],
+      "residual_risk": "The allowlist is enforced by a test, not by types, and knows only the three shipped adapters (NOE-L-021).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the emission audit: listing every field each adapter renders against what promotion reviews."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-039",
+      "title": "Episode narrative carried raw task text and tool error output into ACTIVE, emitted memory",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Untrusted content cannot become retrievable memory without review.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "The session autopsy wrote its raw narrative (Task: <task text>, Failed: <action>: <tool error output>) as the Episode's value and reflection. Episodes are written ACTIVE by the session identity, and the Claude adapter emitted the whole reflection. Skill-candidate descriptions and missed-opportunity text also interpolated caller-supplied task types, step actions and memory keys. This is the channel recorded as limitation NOE-L-016 in the first repair; it was documented there rather than fixed.",
+      "observed_impact": "An untrusted tool result or a task string taken from an inbound ticket became retrievable memory in a later session with no review, and could flow toward promoted skill text.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/reflection/autopsy.py",
+        "path:noesis/gateway/providers.py",
+        "path:benchmarks/corpus/agent_path_v1.json"
+      ],
+      "resolution": "Episode.value is now templated from system data only (outcome, score, a closed KNOWN_PATTERNS vocabulary, counts, a sanitised task-type token). The raw narrative stays in Episode.reflection, bounded to 4,000 characters, for audit and is never rendered; task_description is capped at 500. Task types, action names, tool names and memory keys pass a strict identifier regex or are replaced. The Claude adapter renders only the templated value. Benchmark case AP-08 exercises the route; its control arm (old raw-narrative episode) lands.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestEpisodeChannel (4 cases)",
+        "tests/test_agent_path_benchmark.py (AP-08, control and default)"
+      ],
+      "residual_risk": "Episodes are less informative to a model than the raw narrative was; that is the cost of the control. The audit narrative remains readable to authorized console/CLI users.",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the emission and producer audits; previously logged as a limitation and not fixed."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-040",
+      "title": "A skill could be written already PROMOTED, and promotion trusted self-reported validation fields",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Skills are validated against held-out history before they reach context.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "MemoryStore.write() accepted a Skill with status PROMOTED from any publisher, bypassing the forge entirely. Separately, SkillForge.promote_skill() read shadow_runs, shadow_score and the lift from fields on the skill object, so a caller could set them to any value and promote without a replay having run.",
+      "observed_impact": "Validation was an honour system on both sides: a direct write skipped it, and a promotion call could assert its own evidence.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/vault/store.py",
+        "path:noesis/forge/skill_forge.py"
+      ],
+      "resolution": "write() refuses PROMOTED unless the forge passes promotion_validated=True. promote_skill() calls validate_skill() itself and decides on the freshly recomputed numbers, ignoring anything set on the object.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestSkillGate (4 cases)",
+        "tests/test_adversarial_review_2026_09.py::TestTrust and ::TestSkillReplay (rewritten to build real history)"
+      ],
+      "residual_risk": "promotion_validated is a Python keyword argument; a caller holding the store can pass it. It stops accidents and casual bypass, not a hostile in-process caller (NOE-L-015).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the producer and self-report audits."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-041",
+      "title": "Candidate and quarantined facts earned or lost trust from session signals",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Trust is earned on published memory; unreviewed evidence is inert.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "SessionAutopsy._check_facts() considered every SEMANTIC_FACT, including candidates and quarantined nodes, and the gateway applied confirmation or contradiction to them. Trust a candidate accumulated survived into promotion, and a mention in a failed step could push evidence toward grief and purge.",
+      "observed_impact": "Trust could be farmed on evidence before it was reviewed, and unreviewed evidence could be driven toward the grief cascade by controlling step outputs.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/reflection/autopsy.py"
+      ],
+      "resolution": "Only retrievable (ACTIVE, not purged) facts take part in the cross-reference.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestCandidateInertness (2 cases)"
+      ],
+      "residual_risk": "A published fact can still take one weak (0.25x) operational signal per session from step text an attacker influences; bounded, not eliminated (NOE-L-018).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the producer audit."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-042",
+      "title": "Token estimate used raw length while providers emit escaped text up to six times larger",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "The context packet is bounded by max_tokens.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "MemoryStore.estimate_tokens() counted raw characters. The OpenAI and Ollama adapters emit JSON with ensure_ascii=True (one non-ASCII character becomes up to six) and the Claude adapter XML-escapes (a quote becomes six).",
+      "observed_impact": "A run of non-ASCII or quote characters bypassed the budget at up to six times its nominal size.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/vault/store.py"
+      ],
+      "resolution": "The estimate takes the larger of the JSON-escaped and HTML-escaped length of every part, and counts the skill fields that are actually emitted.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestBudgetMatchesEmission (5 cases)"
+      ],
+      "residual_risk": "Still an approximate character-based estimate, not a tokenizer count (NOE-L-017).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the emission audit."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-043",
+      "title": "Policy matching remained evadable by combining marks, variation selectors, blank fillers, look-alikes and spacing",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Protected terms and key prefixes are enforced against evasive spellings.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "The first repair of NOE-F-034 stripped format and control characters only. Combining marks (Mn), variation selectors, Hangul and Braille blank fillers, common Cyrillic and Greek look-alikes, and spacing or punctuation splits of a term all still defeated substring matching.",
+      "observed_impact": "An authority-shaped claim or protected-namespace key could evade quarantine or rejection with a one-character edit of these kinds.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/governor/policy_boundary.py"
+      ],
+      "resolution": "Matching folds through NFKD, drops marks, format, control and blank characters, casefolds, and maps a conservative table of Cyrillic and Greek look-alikes. Terms of six or more characters are also matched in a compact letters-and-digits form to defeat spacing and punctuation splits. The restatement check uses the same fold.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestPolicyEvasions (19 cases)"
+      ],
+      "residual_risk": "The look-alike table is small, not a full confusables skeleton. Leetspeak and semantic paraphrase are not folded; a lexical scope stays finite by design (NOE-L-009, NOE-L-014).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found as a direct variant of NOE-F-034."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-044",
+      "title": "set_profile and set_project_state published directly, like learn_fact did",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "An agent cannot publish always-loaded context by virtue of the identity it runs as.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "The first repair made learn_fact() evidence-by-default but left the gateway's other agent-callable write paths on the default publish=True. Profile and project state are the highest-priority always-loaded classes, so they are a better place to plant an instruction than a fact.",
+      "observed_impact": "An agent induced to call set_profile() or set_project_state() published attacker text into every future context.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/gateway/retrieval.py",
+        "path:noesis/vault/store.py",
+        "path:benchmarks/corpus/agent_path_v1.json"
+      ],
+      "resolution": "Both take source= and publish= and default to evidence, matching learn_fact(). An operator configures the agent with publish=True. An unpublished write cannot replace a published profile. Quickstart and README updated. Benchmark cases AP-06 and AP-07 land in the control arm and are contained by default.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestGatewayPublicationSurface (4 cases)",
+        "tests/test_agent_path_benchmark.py (AP-06, AP-07)"
+      ],
+      "residual_risk": "install_guardrail() remains a privileged, explicit operator call; an identity holding INSTALL_GUARDRAIL is in the trusted computing base (NOE-L-002).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the producer audit as a direct variant of NOE-F-029."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-045",
+      "title": "The benchmark scored only node.value and could not see attacks through other emitted fields",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "The benchmark measures whether a payload reaches the model.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "run_case and the agent-path runner marked a payload retrieved only if it appeared in node.value. Providers also emit a promoted skill's objective, method and constraints and (formerly) an episode reflection, so a payload riding in any of those was invisible: a benchmark could report 0 wins while the payload reached the model.",
+      "observed_impact": "The published 0/13 could not have detected attacks through non-value fields. This is the measurement counterpart of NOE-F-038 and NOE-F-039.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:benchmarks/harness.py"
+      ],
+      "resolution": "Both runners now score the text all three provider adapters actually render (HTML-unescaped). The agent-path corpus grows to eight cases and its control arm now covers the session-narrative route. Headline results are unchanged: 0/13, 0/8, agent path default 0/8 versus control 6/8.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_agent_path_benchmark.py (4 cases)"
+      ],
+      "residual_risk": "Still first-party, lexical, and with no model in the loop (NOE-L-020).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the measurement audit."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
     }
   ],
   "current_limitations": [
@@ -1447,7 +1761,7 @@
     },
     {
       "id": "NOE-L-014",
-      "statement": "Restatement at promotion defeats cosmetic edits (whitespace, case, punctuation, zero-width and compatibility characters) only. Synonym swaps and homoglyph substitution are not folded, and an authorized reviewer is inside the trusted computing base."
+      "statement": "Restatement and policy matching fold whitespace, case, punctuation, zero-width and other invisible characters, combining marks, and a small table of Cyrillic and Greek look-alikes, and match spaced or punctuated splits of terms of six or more characters. Leetspeak, other confusables, and semantic paraphrase are not folded, and an authorized reviewer is inside the trusted computing base."
     },
     {
       "id": "NOE-L-015",
@@ -1455,7 +1769,10 @@
     },
     {
       "id": "NOE-L-016",
-      "statement": "Only learn_fact() carries the candidate default and origin provenance. Nodes derived by the session identity itself (episodes written at session end, skills forged from them) are published under that identity and can echo untrusted content from session steps. Provenance is not yet propagated through derivation."
+      "status": "resolved",
+      "resolved_by": "NOE-F-039",
+      "resolved_in": "7df9919",
+      "statement": "RESOLVED. Was: Only learn_fact() carries the candidate default and origin provenance. Nodes derived by the session identity itself (episodes written at session end, skills forged from them) are published under that identity and can echo untrusted content from session steps. Provenance is not yet propagated through derivation. Episode text shown to a model is now templated from system data only, task types, action names and memory keys pass an identifier regex, and the raw narrative is kept for audit and never rendered. Retained rather than deleted: ledger law is that a repair appends a status transition, it does not erase the failure."
     },
     {
       "id": "NOE-L-017",
@@ -1472,6 +1789,10 @@
     {
       "id": "NOE-L-020",
       "statement": "The agent-path corpus is first-party, five cases, lexical payloads, and has no model in the loop. It shows the publication path is closed by default, not that a live model cannot be induced to produce and submit harmful content."
+    },
+    {
+      "id": "NOE-L-021",
+      "statement": "The set of fields providers may emit is enforced by a structural test against an allowlist, not by types. The test knows the three shipped adapters and the current node fields; a new adapter, or a new field with a bespoke rendering, must be added to the allowlist deliberately and its gate reviewed."
     }
   ],
   "disclosure_gaps": [

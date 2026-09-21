@@ -31,7 +31,7 @@ commit, regression tests, residual risk, and status history for every entry.
 
 | Status | Count |
 |---|---:|
-| Fixed | 37 |
+| Fixed | 45 |
 | Open | 0 |
 | Independently certified | 0 |
 
@@ -115,6 +115,14 @@ full collector → candidate → review → promotion path) still passing.
 | NOE-F-035 | Faith unreachable through the documented lifecycle | Released | Second-party review (first-party class) | Fixed | `115e126` |
 | NOE-F-036 | Context nodes were live shared objects; enforcement claim stronger than the API | Released | Second-party review (first-party class) | Fixed | `115e126` |
 | NOE-F-037 | Console context endpoint raised for every provider format | Released | Second-party review (first-party class) | Fixed | `115e126` |
+| NOE-F-038 | Promotion reviewed only `value`; other emitted fields passed through | Released | Variant hunt (first-party) | Fixed | `7df9919` |
+| NOE-F-039 | Episode narrative carried raw task text and tool errors into emitted memory | Released | Variant hunt (first-party) | Fixed | `7df9919` |
+| NOE-F-040 | Skill writable as PROMOTED; promotion trusted self-reported evidence | Released | Variant hunt (first-party) | Fixed | `7df9919` |
+| NOE-F-041 | Candidate/quarantined facts earned or lost trust from sessions | Released | Variant hunt (first-party) | Fixed | `7df9919` |
+| NOE-F-042 | Token estimate ignored escaping (up to 6x emitted size) | Released | Variant hunt (first-party) | Fixed | `7df9919` |
+| NOE-F-043 | Policy matching evadable by marks, selectors, fillers, look-alikes, spacing | Released | Variant hunt (first-party) | Fixed | `7df9919` |
+| NOE-F-044 | `set_profile` / `set_project_state` published directly | Released | Variant hunt (first-party) | Fixed | `7df9919` |
+| NOE-F-045 | Benchmark scored only `node.value`; blind to other emitted fields | Released | Variant hunt (first-party) | Fixed | `7df9919` |
 
 NOE-F-029 to NOE-F-037 come from a review supplied by Ghost on 2026-09-19 whose
 reviewer identity and repository access are not independently established. It
@@ -124,6 +132,15 @@ text is preserved verbatim, with the pre-repair verification of each claim, in
 Two things are worth reading there: the policy-matching half of NOE-F-034 was
 *not* in the review and was found while repairing the restatement half, and the
 0.999 trust figure in NOE-F-032 was derived, not observed.
+
+NOE-F-038 to NOE-F-045 are **variants** of those nine, found afterwards by a
+deliberate hunt for other routes to the same failures (method, emission audit
+and negative controls in
+[`evidence/variant-hunt-2026-09-21.md`](evidence/variant-hunt-2026-09-21.md)).
+They are first-party. The largest: promotion reviewed only `value` while
+providers also emit skill and episode fields (NOE-F-038), and the session
+narrative was an unreviewed emitted channel (NOE-F-039), which the first repair
+had *logged as a limitation rather than fixed*.
 
 “Fixed structurally” for NOE-F-019 does not mean Noesis gained general
 semantic understanding. It means ordinary unmatched content is held outside
@@ -191,15 +208,17 @@ competitor. All listed corpus measurements are first-party.
 13. Restatement at promotion defeats a crafted artifact and an inattentive
     approval. It does not constrain an authorized reviewer acting in bad
     faith, who remains inside the trusted computing base.
-14. (NOE-L-014) Restatement defeats cosmetic edits only: whitespace, case,
-    punctuation, zero-width and compatibility characters. Synonym swaps and
-    homoglyph substitution are not folded.
+14. (NOE-L-014) Restatement and policy matching fold whitespace, case,
+    punctuation, invisible characters, combining marks, a small table of
+    Cyrillic/Greek look-alikes, and spaced splits of longer terms. Leetspeak,
+    other confusables and semantic paraphrase are not folded.
 15. (NOE-L-015) Governance is a convention of the store/gateway API, not an
     encapsulation guarantee. `store.backend`, `backend.upsert()` and the SQLite
     connection are reachable, and the benchmark seeds through them.
-16. (NOE-L-016) Only `learn_fact()` carries the candidate default and origin
-    provenance. Nodes the session identity derives itself (episodes, skills
-    forged from them) can echo untrusted content from session steps.
+16. (NOE-L-016) **Resolved** by NOE-F-039 in `7df9919`. Was: only `learn_fact()`
+    carried the candidate default, and nodes the session derived (episodes,
+    skills forged from them) could echo untrusted step text. Episode text is
+    now templated from system data. Retained per ledger law.
 17. (NOE-L-017) Relevance is lexical (five-character stems) plus influence and
     recency, not semantic; the token budget is an approximate character count.
 18. (NOE-L-018) For authored memory, `trust_charge` is the writer's authority,
@@ -207,9 +226,12 @@ competitor. All listed corpus measurements are first-party.
     truthful.
 19. (NOE-L-019) Skill validation measures when triggers would have applied to
     held-out history, not whether following the skill improves an outcome.
-20. (NOE-L-020) The agent-path corpus is first-party, five cases, lexical, with
-    no model in the loop. It shows the publication path is closed by default,
-    not that a live model cannot be induced to submit harmful content.
+20. (NOE-L-020) The agent-path corpus is first-party, eight cases, lexical,
+    with no model in the loop. It shows the publication paths are closed by
+    default, not that a live model cannot be induced to submit harmful content.
+21. (NOE-L-021) The set of fields providers may emit is enforced by a
+    structural test against an allowlist, not by types. It knows the three
+    shipped adapters; a new adapter or field must be added deliberately.
 
 Items 14-20 carry their machine-readable `NOE-L-` ids in
 [`evidence/failure-ledger.json`](evidence/failure-ledger.json), which is the

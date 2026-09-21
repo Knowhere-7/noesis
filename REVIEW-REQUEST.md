@@ -33,8 +33,9 @@ Stated up front so you can stop reading early if the premise doesn't hold.
 > **Update 2026-09-21 (post-review branch `adversarial-review-fixes`).** This
 > brief is pinned to `296665c` and its counts below describe that commit. A
 > second-party review on 2026-09-19 found nine further defects, all now repaired
-> and ledgered as NOE-F-029 to NOE-F-037: **37 findings, 20 limitations
-> (19 binding), 179 tests**. The most important is NOE-F-029, a confused-deputy
+> and ledgered as NOE-F-029 to NOE-F-037, followed by eight variants of them
+> (NOE-F-038 to NOE-F-045) found by a deliberate hunt: **45 findings, 21
+> limitations (19 binding), 228 tests**. The most important is NOE-F-029, a confused-deputy
 > path the original benchmark could not see because it modelled only a
 > low-privilege attacker; a new `agent_path_v1` corpus with a negative control
 > now covers it. The reviewer's identity is unverified, so those findings are
