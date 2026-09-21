@@ -73,8 +73,14 @@ messages = gateway.get_context_messages(query="authentication")
 gateway.record_step("read", "auth.py", "found the bug", "read", success=True)
 gateway.record_step("edit", "auth.py", "applied fix", "edit", success=True)
 
-# Learn facts during the session
-gateway.learn_fact("auth_method", "Uses JWT with RS256")
+# Record a fact learned during the session. This is stored as EVIDENCE — a
+# non-retrievable candidate carrying its origin — even though this identity
+# could publish. The agent that calls learn_fact() has usually just read
+# untrusted input; it must not be able to publish by virtue of who it runs as.
+gateway.learn_fact("auth_method", "Uses JWT with RS256", source="tool:repo_scan")
+# A separately authorized reviewer publishes it by restating what was verified:
+#   gateway.promote_candidate(node_id, approved_value="...", rationale="...")
+# (learn_fact(..., publish=True) is the explicit, greppable opt-out.)
 
 # End session — autopsy runs automatically
 result = gateway.end_session(task_completed=True, final_output="Fixed it")
@@ -92,7 +98,7 @@ noesis/
     trust_gate.py    # Sacred protection, energy gating, contradiction detection
     grief_cascade.py # Recursive purge with faith resistance
   vault/
-    store.py         # MemoryStore API, context assembly
+    store.py         # MemoryStore API; token-budgeted, lexically-ranked context assembly
     sqlite_backend.py # Zero-dep local storage with FTS5
   reflection/
     autopsy.py       # Post-session self-scrutiny
@@ -112,9 +118,20 @@ noesis/
 
 Every memory node carries biological state:
 
-- **trust_charge** — authority `[0.05, 1.0]` resolved from the configured identity boundary and changed through confirmation/contradiction.
-- **grief** — contamination signal `[0, 1]`. Contradictions accumulate grief.
-- **faith** — alignment to core principles `[0, 1]`. Dampens grief by up to 45%.
+- **trust_charge** — `[0.05, 1.0]`. For authored memory (facts, profiles) this
+  is the *writer's authority*, resolved server-side — it says who published the
+  node, not how well supported it is. Producers that know better declare a
+  ceiling: an episode's trust follows its outcome and a promoted skill starts at
+  0.5, whoever stores them. Confirmation and contradiction move it afterwards.
+- **grief** — contamination signal `[0, 1]`. An authorized correction of a
+  published value now registers a contradiction and propagates grief to its
+  registered dependents; a failed session step is only a weak (0.25x) signal.
+- **faith** — `[0, 1]`, starts at 0.1, earned through confirmations up to a cap
+  of 0.6 and eroded by contradictions. Dampens grief intake by up to 45%. Only
+  installed guardrails hold the 0.92 sacred constant.
+- Operational evidence ("a step that mentioned the fact succeeded") is
+  correlation, not truth. It is down-weighted and cannot lift trust above 0.75,
+  which sits below the 0.77 bar a maximum-stakes action demands.
 - **is_sacred** — server-controlled immutable flag. Normal memory payloads cannot set it.
 - **retrieval_state** — active, candidate, or quarantined. Candidates and
   quarantined records remain auditable but cannot enter provider context.
@@ -131,9 +148,19 @@ non-retrievable candidate. Only an identity with `publish_memory` may write
 directly into model context, and candidate promotion requires the separate
 `promote_candidate` capability, a reviewer-supplied approved value, and a
 review rationale. The raw candidate is preserved in audit metadata and never
-enters provider messages. Current code does not require the approved value to
-differ from the raw candidate; that open contract gap is
-[NOE-F-026](FAILURE_LEDGER.md#noe-f-026--candidate-promotion-does-not-enforce-a-changed-value).
+enters provider messages. The approved value must differ from the raw candidate
+beyond cosmetic edits (whitespace, case, punctuation, zero-width characters,
+compatibility Unicode) — this defeats a crafted artifact passing through
+unread, not a synonym swap or a malicious reviewer
+([NOE-F-026](FAILURE_LEDGER.md#noe-f-026--candidate-promotion-does-not-enforce-a-changed-value),
+[NOE-L-014](FAILURE_LEDGER.md)).
+
+**The publisher is inside the trust boundary, and so is the agent if it
+publishes.** A process holding `publish_memory` that acts on untrusted input is
+a confused deputy: the candidate boundary only helps if the agent is *not* the
+publisher. `learn_fact()` therefore stores evidence by default and requires an
+explicit `publish=True` to publish. The `agent_path_v1` benchmark measures this
+route, with a negative control that reproduces the old behavior.
 
 Guardrail owners may additionally declare protected key prefixes and terms.
 Writes into an authority namespace are rejected; authority-shaped claims
@@ -211,9 +238,12 @@ Recurring failure detected (3+ episodes)
         |
    [PROPOSED] — Skill drafted from pattern evidence
         |
-  [VALIDATING] — Shadow-tested against historical episodes
+  [VALIDATING] — Trigger-replayed against HELD-OUT history: precision, recall
+        |         and lift over the no-skill failure rate. This measures when
+        |         the skill would have applied, NOT whether following it would
+        |         have improved an outcome (that needs a counterfactual run).
         |
-   [PROMOTED] — Active in procedural memory (trust 0.5)
+   [PROMOTED] — Active in procedural memory (trust capped at 0.5)
         |
    Retrospective monitors effectiveness
         |

@@ -486,7 +486,11 @@ class TestSkillForge:
         forge = SkillForge()
         eval_result = forge.validate_skill(skill, store)
         assert skill.status == SkillStatus.VALIDATING
-        assert skill.shadow_runs == 1
+        # Nothing was replayed: an empty history yields no shadow runs and
+        # cannot pass, however well-formed the skill looks (R5). This used to
+        # assert shadow_runs == 1 from a structural checklist.
+        assert skill.shadow_runs == 0
+        assert eval_result.passed is False
 
 
 # ── 6. Gateway Tests ─────────────────────────────────────────────────

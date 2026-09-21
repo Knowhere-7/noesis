@@ -144,8 +144,25 @@ gateway.record_step("write", "routes/users.py", "POST /users endpoint", "write",
 gateway.record_step("bash", "pytest", "4 tests passed", "bash", True)
 gateway.record_tokens(prompt_tokens=2000, completion_tokens=800)
 
-# Learn a fact during the session
-gateway.learn_fact("auth_method", "Project uses JWT with RS256 signing")
+# Learn a fact during the session. `quickstart-owner` holds every permission,
+# including PUBLISH_MEMORY, but learn_fact() stores EVIDENCE by default: an agent
+# that has just read untrusted input must not publish by virtue of the identity
+# it runs as. The fact is a non-retrievable candidate until a reviewer restates
+# what was actually verified.
+learned, reason = gateway.learn_fact(
+    "auth_method",
+    "Repo scan output: project uses JWT with RS256 signing",
+    source="tool:repo_scan",
+)
+assert learned, reason
+pending = gateway.store.get("auth_method")
+assert pending is not None and pending.retrieval_state.name == "CANDIDATE"
+promoted, reason = gateway.promote_candidate(
+    pending.id,
+    approved_value="Auth uses JWT with RS256 signing (verified in auth/config.py).",
+    rationale="Confirmed against the signing config, not the scan output.",
+)
+assert promoted, reason
 
 # End session — autopsy runs automatically
 result1 = gateway.end_session(

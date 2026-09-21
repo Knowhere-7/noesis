@@ -9,6 +9,9 @@ the interface works.
 from __future__ import annotations
 
 import hashlib
+import json
+import math
+import re
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -42,10 +45,27 @@ from noesis.governor.authority import (
 class MemoryStore:
     """High-level memory operations, backed by a pluggable storage backend.
 
-    This is the main API surface. All reads and writes pass through
-    the TrustGate for governance. The GriefCascade runs periodically
-    to purge contaminated branches.
+    This is the main API surface. Writes made through this class pass through
+    the authority resolver, policy boundary and TrustGate; reads made through
+    it exclude candidate, quarantined and purged nodes.
+
+    That is a convention of this API, NOT an encapsulation guarantee. The
+    ``backend`` attribute is the raw storage layer: writing to it bypasses
+    every governance check, and the benchmark harness does exactly that to seed
+    fixtures. Code that holds a store (or a SQLite handle) is inside the trusted
+    computing base. See limitation NOE-L-015.
     """
+
+    DEFAULT_MAX_TOKENS = 4000
+    # Retrieval ranking. Relevance multiplies influence rather than adding to
+    # it, so a grief-silenced or low-trust node cannot be launched to the top by
+    # keyword overlap alone.
+    RELEVANCE_BOOST = 4.0
+    RECENCY_WEIGHT = 0.1
+    RECENCY_HALF_LIFE_HOURS = 24.0 * 30
+    MAX_CONTEXT_SKILLS = 5
+    MAX_CONTEXT_FACTS = 20
+    MAX_CONTEXT_EPISODES = 3
 
     _WRITE_PERMISSIONS = {
         NodeType.EPHEMERAL: WritePermission.WRITE_MEMORY,
@@ -89,11 +109,30 @@ class MemoryStore:
     def write(
         self,
         node: MemoryNode,
+        *,
+        publish: bool = True,
+        trust_ceiling: Optional[float] = None,
+        origin: Optional[str] = None,
     ) -> Tuple[bool, str]:
         """Write a memory node through the trust gate.
 
         Authority is resolved from the store-bound author identity. Trust and
         privileged governance fields are never accepted from this payload.
+
+        ``publish=False`` submits the node as evidence even when the author
+        holds PUBLISH_MEMORY: it is stored as a non-retrievable candidate. An
+        autonomous agent acting on untrusted input must not be able to publish
+        by virtue of the identity it runs as (R1, the confused-deputy path);
+        the gateway's ``learn_fact`` therefore defaults to this.
+
+        ``trust_ceiling`` lets a producer declare that its output deserves LESS
+        trust than the writer's authority — a failed episode, a freshly promoted
+        skill. It can only lower trust, never raise it, so it is safe to
+        honour from any caller.
+
+        ``origin`` records where the content came from ("session", "tool:ci").
+        It is server-recorded provenance: any caller-supplied ``_noesis_*``
+        metadata is stripped first.
 
         Returns (success, message). If the gate blocks the write,
         success is False and message explains why.
@@ -119,11 +158,12 @@ class MemoryStore:
         if author is None:
             return False, reason
 
-        self._apply_server_governance(node, author)
-        can_publish = author.permits(
+        self._apply_server_governance(node, author, origin)
+        holds_publish = author.permits(
             WritePermission.PUBLISH_MEMORY,
             self.namespace,
         )
+        can_publish = holds_publish and publish
         existing = self.backend.get_by_key(node.key, self.namespace)
         if existing is not None:
             if existing.retrieval_state == RetrievalState.CANDIDATE:
@@ -137,8 +177,9 @@ class MemoryStore:
                     "through the normal write path."
                 )
             if not can_publish:
+                who = "Collector" if not holds_publish else "Unpublished write"
                 return False, (
-                    f"Collector cannot replace published memory '{node.key}'. "
+                    f"{who} cannot replace published memory '{node.key}'. "
                     "Submit evidence under a new candidate key."
                 )
 
@@ -164,12 +205,31 @@ class MemoryStore:
             node.candidate_reason = (
                 f"Author '{author.author_id}' may ingest memory but lacks "
                 f"'{WritePermission.PUBLISH_MEMORY.value}' authority."
+                if not holds_publish
+                else (
+                    f"Author '{author.author_id}' holds "
+                    f"'{WritePermission.PUBLISH_MEMORY.value}' but submitted "
+                    "this write as evidence (publish=False); an explicit "
+                    "promotion is required."
+                )
             )
             node.candidate_at = time.time()
             reason = (
                 "Write stored as a non-retrievable candidate pending "
                 "authorized promotion."
             )
+
+        if trust_ceiling is not None:
+            node.trust_charge = max(
+                TrustGate.TRUST_FLOOR,
+                min(node.trust_charge, trust_ceiling),
+            )
+
+        if (
+            existing is not None
+            and node.retrieval_state == RetrievalState.ACTIVE
+        ):
+            self.trust_gate.register_correction(node, existing, self)
 
         self.backend.upsert(node)
         return True, reason
@@ -245,6 +305,9 @@ class MemoryStore:
         key: str,
         value: str,
         source_episode_id: Optional[str] = None,
+        *,
+        publish: bool = True,
+        origin: Optional[str] = None,
     ) -> Tuple[bool, str]:
         """Write a semantic fact through the trust gate."""
         fact = Fact(
@@ -253,11 +316,16 @@ class MemoryStore:
             source_episode_id=source_episode_id,
             namespace=self.namespace,
         )
-        return self.write(fact)
+        return self.write(fact, publish=publish, origin=origin)
 
     def write_episode(self, episode: Episode) -> Tuple[bool, str]:
-        """Write a session episode through the authority and trust gates."""
-        return self.write(episode)
+        """Write a session episode through the authority and trust gates.
+
+        The trust the producer computed from the outcome is honoured as a
+        ceiling, so a disastrous session is not stored at its writer's
+        near-maximal authority trust (R4).
+        """
+        return self.write(episode, trust_ceiling=episode.trust_charge)
 
     def write_profile(self, profile: Profile) -> Tuple[bool, str]:
         """Write/update agent profile through the authority and trust gates."""
@@ -289,6 +357,7 @@ class MemoryStore:
         self,
         node: MemoryNode,
         author: AuthorRecord,
+        origin: Optional[str] = None,
     ) -> None:
         """Replace every caller-controlled governance field with policy."""
         node.namespace = self.namespace
@@ -311,6 +380,8 @@ class MemoryStore:
             if not key.startswith("_noesis_")
         }
         node.metadata["_noesis_author_id"] = author.author_id
+        if origin is not None:
+            node.metadata["_noesis_origin"] = str(origin)[:200]
 
     # ── Read Operations ────────────────────────────────────────────────
 
@@ -546,84 +617,155 @@ class MemoryStore:
         self,
         query: str = "",
         task_type: str = "",
-        max_tokens: int = 4000,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
     ) -> List[MemoryNode]:
         """Assemble a context packet for session injection.
 
-        Priority order:
-        1. System guardrails (always loaded, sacred)
-        2. Agent profile (always loaded)
-        3. Project state (always loaded if exists)
-        4. Relevant skills (matching task type)
-        5. Top semantic facts (by similarity + importance + trust)
-        6. Matching episodes (1-3 as few-shot examples)
+        Order of admission:
+        1. System guardrails — always loaded, sacred, and NOT subject to the
+           budget. Dropping a safety rule to save tokens is the wrong trade, so
+           a budget smaller than the guardrails simply returns guardrails only.
+        2. Agent profile
+        3. Project state
+        4. Promoted skills (at most MAX_CONTEXT_SKILLS)
+        5. Semantic facts (at most MAX_CONTEXT_FACTS)
+        6. Episodes (at most MAX_CONTEXT_EPISODES)
 
-        Each node's retrieval weight is governed by the trust gate.
-        Low-trust, high-grief nodes get de-prioritized automatically.
+        Everything after the guardrails competes for ``max_tokens`` (estimated,
+        see ``estimate_tokens``): within a class, nodes are ranked by trust-gate
+        influence, boosted by lexical relevance to ``query`` and ``task_type``
+        and mildly by recency; a node is admitted only if it still fits.
+
+        Relevance is lexical (shared word stems), not semantic. It re-ranks; it
+        does not hard-filter, so an unmatched but trusted node still appears
+        when there is room. With an empty query and task_type, ranking reduces
+        to influence and recency.
         """
-        context: List[MemoryNode] = []
+        budget = max(0, int(max_tokens))
+        wanted = self._stems(f"{query} {task_type}")
+        now = time.time()
 
-        # 1. Guardrails — always, non-negotiable
-        guardrails = self.backend.get_by_type(
-            NodeType.SYSTEM_GUARDRAIL, self.namespace
-        )
-        context.extend([node for node in guardrails if self._retrievable(node)])
-
-        # 2. Profile
-        profiles = self.backend.get_by_type(
-            NodeType.PROFILE, self.namespace
-        )
-        context.extend([node for node in profiles if self._retrievable(node)])
-
-        # 3. Project state
-        project_states = self.backend.get_by_type(
-            NodeType.PROJECT_STATE, self.namespace
-        )
-        context.extend(
-            [node for node in project_states if self._retrievable(node)]
-        )
-
-        # 4. Active skills matching task type
-        skills = self.backend.get_by_type(
-            NodeType.SKILL, self.namespace
-        )
-        active_skills = [
-            s for s in skills
-            if (
-                isinstance(s, Skill)
-                and s.status == SkillStatus.PROMOTED
-                and self._retrievable(s)
+        context: List[MemoryNode] = [
+            node
+            for node in self.backend.get_by_type(
+                NodeType.SYSTEM_GUARDRAIL, self.namespace
             )
+            if self._retrievable(node)
         ]
-        # Score and sort by trust gate influence
-        active_skills.sort(
-            key=lambda s: self.trust_gate.gate_read(s), reverse=True
-        )
-        context.extend(active_skills[:5])  # top 5 relevant skills
 
-        # 5. Semantic facts — sorted by influence weight
-        facts = self.backend.get_by_type(
-            NodeType.SEMANTIC_FACT, self.namespace
-        )
-        scored_facts = [
-            (f, self.trust_gate.gate_read(f)) for f in facts
-            if self._retrievable(f)
+        def ranked(nodes: List[MemoryNode], limit: Optional[int]):
+            scored = []
+            for node in nodes:
+                if not self._retrievable(node):
+                    continue
+                influence = self.trust_gate.gate_read(node)
+                relevance = self._relevance(node, wanted)
+                age_hours = max(0.0, (now - node.last_accessed) / 3600.0)
+                recency = 1.0 + self.RECENCY_WEIGHT * math.pow(
+                    0.5, age_hours / self.RECENCY_HALF_LIFE_HOURS
+                )
+                score = (
+                    influence
+                    * (1.0 + self.RELEVANCE_BOOST * relevance)
+                    * recency
+                )
+                scored.append((score, node))
+            scored.sort(key=lambda pair: pair[0], reverse=True)
+            picked = [node for _, node in scored]
+            return picked if limit is None else picked[:limit]
+
+        skills = [
+            s for s in self.backend.get_by_type(
+                NodeType.SKILL, self.namespace
+            )
+            if isinstance(s, Skill) and s.status == SkillStatus.PROMOTED
         ]
-        scored_facts.sort(key=lambda x: x[1], reverse=True)
-        context.extend([f for f, _ in scored_facts[:20]])
-
-        # 6. Episodes — most recent, highest-trust
-        episodes = self.backend.get_by_type(
-            NodeType.EPISODE, self.namespace
-        )
-        scored_episodes = [
-            (e, self.trust_gate.gate_read(e)) for e in episodes
-            if self._retrievable(e)
+        groups = [
+            ranked(
+                self.backend.get_by_type(NodeType.PROFILE, self.namespace),
+                None,
+            ),
+            ranked(
+                self.backend.get_by_type(
+                    NodeType.PROJECT_STATE, self.namespace
+                ),
+                None,
+            ),
+            ranked(skills, self.MAX_CONTEXT_SKILLS),
+            ranked(
+                self.backend.get_by_type(
+                    NodeType.SEMANTIC_FACT, self.namespace
+                ),
+                self.MAX_CONTEXT_FACTS,
+            ),
+            ranked(
+                self.backend.get_by_type(NodeType.EPISODE, self.namespace),
+                self.MAX_CONTEXT_EPISODES,
+            ),
         ]
-        scored_episodes.sort(key=lambda x: x[1], reverse=True)
-        context.extend([e for e, _ in scored_episodes[:3]])
 
+        used = 0
+        for group in groups:
+            for node in group:
+                cost = self.estimate_tokens(node)
+                if used + cost <= budget:
+                    context.append(node)
+                    used += cost
         return context
+
+    @staticmethod
+    def estimate_tokens(node: MemoryNode) -> int:
+        """Cheap deterministic token estimate (~4 characters per token).
+
+        Deliberately provider-agnostic and slightly generous: it exists to
+        bound context growth, not to predict a specific tokenizer's count.
+        """
+        parts = [node.key, node.value]
+        if isinstance(node, Skill):
+            parts.extend([node.method, *node.constraints])
+        elif isinstance(node, Profile):
+            parts.extend(node.constraints)
+            if node.preferences:
+                parts.append(json.dumps(node.preferences, default=str))
+        elif isinstance(node, ProjectState):
+            parts.extend(node.objectives)
+            parts.extend(node.blockers)
+            if node.decisions:
+                parts.append(json.dumps(node.decisions, default=str))
+        elif isinstance(node, Episode) and node.reflection:
+            parts.append(node.reflection)
+        chars = sum(len(part) for part in parts if isinstance(part, str))
+        return (chars + 3) // 4 + 4      # +4: per-node framing overhead
+
+    _STOPWORDS = frozenset({
+        "the", "and", "for", "with", "that", "this", "what", "how", "does",
+        "are", "was", "can", "you", "our", "has", "have", "from", "into",
+        "about", "when", "where", "which", "resume", "work", "task",
+    })
+
+    @classmethod
+    def _stems(cls, text: str) -> frozenset:
+        """Five-character word stems, so 'deploy' matches 'deployment'."""
+        words = re.findall(r"[a-z0-9]{3,}", text.casefold())
+        return frozenset(
+            word[:5] for word in words if word not in cls._STOPWORDS
+        )
+
+    @classmethod
+    def _relevance(cls, node: MemoryNode, wanted: frozenset) -> float:
+        """Fraction of the query's stems present in the node's text [0, 1]."""
+        if not wanted:
+            return 0.0
+        parts = [node.key, node.value]
+        if isinstance(node, Skill):
+            parts.extend(
+                [node.objective, node.pattern_description,
+                 *node.trigger_conditions]
+            )
+        elif isinstance(node, Episode):
+            parts.append(node.task_description)
+        have = cls._stems(" ".join(p for p in parts if isinstance(p, str)))
+        return len(wanted & have) / len(wanted)
 
     @staticmethod
     def _retrievable(node: MemoryNode) -> bool:

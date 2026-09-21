@@ -3,7 +3,7 @@ Skill Forge — Turns recurring failure patterns into procedural memory.
 
 The lifecycle:
   1. PROPOSED — Pattern detected by Retrospective, skill drafted
-  2. VALIDATING — Shadow-running against historical episodes
+  2. VALIDATING — Trigger replay against held-out historical episodes
   3. PROMOTED — Passed validation, active in procedural memory
   4. DEPRECATED — Performance declined, retired but kept for audit
   5. REJECTED — Failed validation, archived
@@ -27,6 +27,7 @@ that can be injected into any LLM's context window.
 from __future__ import annotations
 
 import logging
+import re
 import time
 import uuid
 from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
@@ -54,8 +55,9 @@ class SkillForge:
     from polluting the agent's behavior:
 
     1. Draft: Pattern → Skill template (structured, not freeform)
-    2. Validate: Replay against historical episodes (shadow mode)
-    3. Promote: Only if validation score beats baseline
+    2. Validate: Replay triggers against held-out history (precision,
+       recall, lift over the no-skill failure rate)
+    3. Promote: Only if replay lift over baseline is positive
     4. Monitor: Retrospective tracks effectiveness post-promotion
     5. Deprecate: If effectiveness drops, skill is retired
 
@@ -292,89 +294,113 @@ class SkillForge:
 
     # ── Skill Validation (Shadow Mode) ────────────────────────────────
 
+    FAILURE_SCORE = 0.5             # an episode below this counts as a failure
+    PROMOTED_SKILL_TRUST = 0.5      # a promoted skill has not yet EARNED more
+    DEPRECATED_SKILL_TRUST = 0.1
+
+    _TASK_TRIGGER = re.compile(r"^task contains '(.+)'$")
+    _TOOL_TRIGGER = re.compile(r"^tool '(.+)' in use$")
+
+    @classmethod
+    def _trigger_fires(cls, skill: Skill, episode: Episode) -> bool:
+        """Would this skill's trigger conditions have fired on the episode?
+
+        Deterministic and side-effect free. A skill whose only trigger is the
+        placeholder "manual_trigger" can never be replayed, so it never fires.
+        """
+        task = (episode.task_description or "").lower()
+        tools = {t.lower() for t in episode.tools_used}
+        for trigger in skill.trigger_conditions:
+            match = cls._TASK_TRIGGER.match(trigger)
+            if match and match.group(1).lower() in task:
+                return True
+            match = cls._TOOL_TRIGGER.match(trigger)
+            if match and match.group(1).lower() in tools:
+                return True
+        return False
+
     def validate_skill(
         self,
         skill: Skill,
         store: MemoryStore,
     ) -> Evaluation:
-        """Run a shadow validation of a proposed skill.
+        """Replay the skill's triggers against HELD-OUT history.
 
-        Shadow validation replays historical episodes and
-        estimates whether the skill would have improved outcomes.
+        What this measures, exactly: over episodes the skill was NOT built
+        from, does it fire on the failures and stay quiet on the successes,
+        and does firing beat the no-skill failure rate? That is trigger
+        precision / recall and lift over a baseline — a real, repeatable
+        measurement of when the skill would have applied.
 
-        For v1, this is a structural check (are the skill's
-        trigger conditions and method well-formed?). Future
-        versions will use LLM-based counterfactual evaluation.
+        What it does NOT measure: whether following the skill would have
+        improved any outcome. That needs a counterfactual run of the agent,
+        which this deterministic core cannot perform. The result says so.
+
+        Source episodes are excluded (a skill is derived from them, so scoring
+        it there is circular). ``shadow_runs`` is the number of DISTINCT
+        held-out episodes replayed, so calling this repeatedly cannot
+        manufacture the runs promotion requires (R5).
         """
         eval_result = Evaluation(
-            key=f"eval:{skill.key}:{skill.shadow_runs + 1}",
+            key=f"eval:{skill.key}:{skill.shadow_runs}",
             namespace=skill.namespace,
             skill_id=skill.id,
         )
 
-        # Structural validation
-        score = 0.0
-        notes = []
+        sources = set(skill.source_episode_ids)
+        held_out = [
+            e for e in store.backend.get_by_type(
+                NodeType.EPISODE, store.namespace
+            )
+            if isinstance(e, Episode)
+            and store._retrievable(e)
+            and e.id not in sources
+        ]
+        failures = [e for e in held_out if e.outcome_score < self.FAILURE_SCORE]
+        fired = [e for e in held_out if self._trigger_fires(skill, e)]
+        hits = [e for e in fired if e.outcome_score < self.FAILURE_SCORE]
 
-        # Check trigger conditions
-        if skill.trigger_conditions and skill.trigger_conditions != ["manual_trigger"]:
-            score += 0.2
-            notes.append("Has specific trigger conditions")
-        else:
-            notes.append("Missing specific triggers — may fire too broadly")
+        recall = len(hits) / len(failures) if failures else 0.0
+        precision = len(hits) / len(fired) if fired else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if precision + recall
+            else 0.0
+        )
+        baseline = len(failures) / len(held_out) if held_out else 0.0
+        lift = (precision - baseline) if fired else 0.0
 
-        # Check method quality
-        if len(skill.method) > 50:
-            score += 0.2
-            notes.append("Has substantive method description")
-        else:
-            notes.append("Method is thin — needs more evidence")
-
-        # Check constraints
-        if skill.constraints:
-            score += 0.15
-            notes.append(f"Has {len(skill.constraints)} constraints")
-
-        # Check eval tests
-        if skill.eval_tests:
-            score += 0.15
-            notes.append(f"Has {len(skill.eval_tests)} eval scenarios")
-
-            # Check if source episodes exist in store
-            found = 0
-            for test in skill.eval_tests:
-                ep = store.get_by_id(test.get("episode_id", ""))
-                if ep:
-                    found += 1
-            if found > 0:
-                score += 0.15
-                notes.append(
-                    f"{found}/{len(skill.eval_tests)} test episodes "
-                    f"found in store"
-                )
-        else:
-            notes.append("No eval tests — cannot validate effectiveness")
-
-        # Source episode count
-        if len(skill.source_episode_ids) >= 3:
-            score += 0.15
-            notes.append(
-                f"Based on {len(skill.source_episode_ids)} episodes "
-                f"— good evidence base"
+        enough = len(held_out) >= self.MIN_SHADOW_RUNS
+        eval_result.score_delta = lift
+        eval_result.passed = (
+            enough
+            and bool(failures)
+            and f1 >= self.PROMOTION_THRESHOLD
+            and lift > 1e-9
+        )
+        eval_result.notes = (
+            "Trigger replay only — not outcome improvement. "
+            f"Replayed {len(held_out)} held-out episode(s) "
+            f"({len(failures)} failures); skill fired on {len(fired)}, "
+            f"{len(hits)} of them failures. precision={precision:.2f} "
+            f"recall={recall:.2f} f1={f1:.2f} baseline_failure_rate="
+            f"{baseline:.2f} lift={lift:+.2f}."
+        )
+        if not enough:
+            eval_result.notes += (
+                f" Need at least {self.MIN_SHADOW_RUNS} held-out episodes."
             )
 
-        eval_result.score_delta = score
-        eval_result.passed = score >= self.PROMOTION_THRESHOLD
-        eval_result.notes = "; ".join(notes)
-
-        # Update skill state
-        skill.shadow_runs += 1
-        skill.shadow_score = score
+        skill.shadow_runs = len(held_out)
+        skill.shadow_score = f1
+        skill.baseline_score = baseline
+        skill.metadata["shadow_lift"] = lift
         skill.status = SkillStatus.VALIDATING
 
         logger.info(
-            "Validation run %d for skill '%s': score=%.2f, passed=%s",
-            skill.shadow_runs, skill.key, score, eval_result.passed,
+            "Validation of skill '%s': %d held-out episodes, f1=%.2f, "
+            "lift=%+.2f, passed=%s",
+            skill.key, len(held_out), f1, lift, eval_result.passed,
         )
 
         return eval_result
@@ -389,9 +415,13 @@ class SkillForge:
         """Promote a validated skill to active procedural memory.
 
         Only promotes if:
-        1. Enough shadow runs completed
-        2. Shadow score beats promotion threshold
-        3. Not at skill cap
+        1. Enough DISTINCT held-out episodes were replayed
+        2. Trigger F1 meets the promotion threshold
+        3. Firing beats the no-skill failure rate (positive lift)
+
+        A promoted skill is stored at PROMOTED_SKILL_TRUST regardless of who
+        promotes it: its trust is earned by later performance, not conferred by
+        the identity that pressed the button.
         """
         if skill.shadow_runs < self.MIN_SHADOW_RUNS:
             return False, (
@@ -407,11 +437,17 @@ class SkillForge:
                 f"threshold {self.PROMOTION_THRESHOLD}"
             )
 
-        # Promote
+        if skill.metadata.get("shadow_lift", 0.0) <= 1e-9:
+            return False, (
+                "Replay lift over the no-skill baseline "
+                f"({skill.baseline_score:.2f} failure rate) is not positive; "
+                "the skill fires no more selectively than chance."
+            )
+
         skill.status = SkillStatus.PROMOTED
-        skill.trust_charge = 0.5    # promoted skills start at mid-trust
-        skill.importance = 0.7      # high but not sacred
-        success, reason = store.write(skill)
+        success, reason = store.write(
+            skill, trust_ceiling=self.PROMOTED_SKILL_TRUST
+        )
 
         if success:
             logger.info("Skill '%s' PROMOTED to procedural memory", skill.key)
@@ -430,11 +466,11 @@ class SkillForge:
         excluded from context assembly.
         """
         skill.status = SkillStatus.DEPRECATED
-        skill.importance = 0.1      # de-prioritize in retrieval
-        skill.trust_charge = 0.1    # low trust
         skill.metadata["deprecation_reason"] = reason
         skill.metadata["deprecated_at"] = time.time()
-        success, msg = store.write(skill)
+        success, msg = store.write(
+            skill, trust_ceiling=self.DEPRECATED_SKILL_TRUST
+        )
 
         if success:
             logger.info(

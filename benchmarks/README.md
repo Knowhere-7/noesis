@@ -43,6 +43,34 @@ wording, ordinary ingestion still cannot publish that wording into provider
 context. A trusted publisher remains part of the security boundary. Do not
 call this general jailbreak resistance.
 
+## Agent path (added after the 2026-09-19 second-party review)
+
+`memory_poisoning_v1` gives the attacker a low-privilege collector identity, so
+candidate-by-default contains all 13 attacks. That proves the authorization
+boundary. It does **not** show what happens when the writer is the *agent* and
+the agent holds `publish_memory` — the realistic confused-deputy route, where
+the attacker needs no permission because the agent they are steering already
+has it. The 0/13 result does not speak to that route.
+
+`corpus/agent_path_v1.json` replays five cases through
+`RetrievalGateway.learn_fact()` with an owner-level identity, in two arms:
+
+| Arm | Meaning |
+|---|---|
+| `default` | `learn_fact()` as shipped (evidence by default) |
+| `publish_control` | `publish=True`, which reproduces the pre-fix behavior |
+
+The control arm is a **negative control**: it must show attacker wins, otherwise
+the harness cannot see the attack and the default arm's 0/5 proves nothing.
+Current result: default 0/5, control 3/5. The two cases the control still
+contains (AP-03 authority-shaped claim, AP-05 zero-width-split protected term)
+are held by the policy boundary, an independent layer.
+
+Limits: five first-party cases, lexical payloads, no live model in the loop. It
+shows the publication path is closed by default, not that an agent's *other*
+outputs (episode text, for instance, is derived from session steps and can echo
+untrusted content) are free of poisoning — see limitation NOE-L-016.
+
 ## Measurement
 
 The attack corpus counts an attacker win only when its marker both:

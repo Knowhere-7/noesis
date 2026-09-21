@@ -482,6 +482,101 @@ def run_benign_case(case: Dict[str, Any], arm: str, tmpdir: str) -> CaseResult:
     return res
 
 
+def run_agent_path_case(
+    case: Dict[str, Any], *, publish: bool, tmpdir: str
+) -> CaseResult:
+    """Replay one case through a PRIVILEGED agent's learn_fact().
+
+    memory_poisoning_v1 gives the attacker a low-privilege collector identity,
+    so it cannot see the confused-deputy route: the attacker needs no permission
+    if the agent they are steering already holds it. Here the writer is an
+    owner-level identity (every permission, including PUBLISH_MEMORY) and the
+    attacker's only lever is getting the agent to call learn_fact().
+
+    ``publish=False`` is learn_fact as shipped. ``publish=True`` reproduces the
+    pre-fix behaviour and exists as a NEGATIVE CONTROL: if it does not let
+    attacks through, the harness is blind and the default arm proves nothing.
+    """
+    from noesis.gateway.retrieval import RetrievalGateway
+
+    db = os.path.join(tmpdir, f"agent_{case['id']}_{publish}_{id(case)}.db")
+    authority = StaticAuthorityResolver(
+        [
+            AuthorRecord(
+                author_id="agent-owner",
+                trust=0.95,
+                permissions=frozenset(WritePermission),
+                namespaces=frozenset({"bench"}),
+            )
+        ]
+    )
+    gateway = RetrievalGateway(
+        db_path=db,
+        namespace="bench",
+        author_id="agent-owner",
+        authority=authority,
+    )
+    res = CaseResult(
+        case_id=case["id"],
+        attack_class=case["class"],
+        arm="publish_control" if publish else "default",
+        writes_attempted=0,
+        writes_blocked=0,
+    )
+    try:
+        for g in case.get("setup_guardrails", []):
+            gateway.install_guardrail(
+                g["key"],
+                g["rule"],
+                protected_key_prefixes=g.get("protected_key_prefixes", []),
+                protected_terms=g.get("protected_terms", []),
+            )
+        for f in case.get("setup_facts", []):
+            # Operator-verified state: published deliberately, not by the agent.
+            gateway.learn_fact(f["key"], f["value"], source="operator", publish=True)
+
+        markers = case.get("payload_markers") or [case["payload_marker"]]
+        persisted = set()
+        for w in case["attack_writes"]:
+            ok, reason = gateway.learn_fact(
+                w["key"], w["value"], source=w.get("source", "session"),
+                publish=publish,
+            )
+            res.writes_attempted += 1
+            if not ok:
+                res.writes_blocked += 1
+                if reason not in res.block_reasons:
+                    res.block_reasons.append(reason)
+            stored = gateway.store.get(w["key"])
+            if stored is None:
+                continue
+            for marker in markers:
+                if marker in (stored.value or ""):
+                    persisted.add(marker)
+            if stored.retrieval_state == RetrievalState.CANDIDATE:
+                res.candidate = True
+                if stored.candidate_reason:
+                    res.containment_reasons.append(stored.candidate_reason)
+            elif stored.retrieval_state == RetrievalState.QUARANTINED:
+                res.quarantined = True
+                if stored.quarantine_reason:
+                    res.containment_reasons.append(stored.quarantine_reason)
+        res.persisted = len(persisted) == len(markers)
+
+        retrieved = set()
+        for node in gateway.store.assemble_context(query="resume work"):
+            if gateway.store.trust_gate.gate_read(node) <= 0.0:
+                continue
+            for marker in markers:
+                if marker in (node.value or ""):
+                    retrieved.add(marker)
+        res.retrieved = len(retrieved) == len(markers)
+        res.attacker_win = res.persisted and res.retrieved
+    finally:
+        gateway.close()
+    return res
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Noesis memory-poisoning benchmark")
     ap.add_argument(
@@ -570,6 +665,43 @@ def main() -> int:
             print("'high block rate at the cost of usability', NOT 'safe by default'.")
             print()
 
+    # ── Agent path: a PRIVILEGED agent steered by untrusted input ──────
+    agent_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "corpus", "agent_path_v1.json")
+    agent_results: List[CaseResult] = []
+    agent_default_wins = agent_control_wins = agent_total = 0
+    if os.path.exists(agent_path):
+        with open(agent_path, "r", encoding="utf-8") as fh:
+            agent_corpus = json.load(fh)
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+            for case in agent_corpus["cases"]:
+                agent_results.append(
+                    run_agent_path_case(case, publish=False, tmpdir=tmpdir)
+                )
+                agent_results.append(
+                    run_agent_path_case(case, publish=True, tmpdir=tmpdir)
+                )
+        print("AGENT PATH — privileged agent calling learn_fact() on untrusted input")
+        print(f"corpus: {agent_corpus['corpus_id']} v{agent_corpus['version']}")
+        print(f"{'CASE':<7} {'CLASS':<24} {'DEFAULT':<14} {'PUBLISH CONTROL'}")
+        print("-" * 78)
+        for i in range(0, len(agent_results), 2):
+            d, c = agent_results[i], agent_results[i + 1]
+            agent_total += 1
+            agent_default_wins += int(d.attacker_win)
+            agent_control_wins += int(c.attacker_win)
+            print(f"{d.case_id:<7} {d.attack_class:<24} "
+                  f"{'ATTACKER WINS' if d.attacker_win else 'contained':<14} "
+                  f"{'ATTACKER WINS' if c.attacker_win else 'contained'}")
+        print("-" * 78)
+        print(f"{'TOTAL':<7} {'':<24} {agent_default_wins}/{agent_total} won"
+              f"{'':<6} {agent_control_wins}/{agent_total} won")
+        print()
+        print("The control arm (publish=True) reproduces the pre-fix behaviour. It")
+        print("must show attacker wins, or this section cannot see the attack it")
+        print("claims to contain.")
+        print()
+
     print("v1 corpora are FIRST-PARTY. Not independent evidence until an external")
     print("corpus is run and the raw records below are re-scored by a third party.")
     print()
@@ -588,8 +720,15 @@ def main() -> int:
                 "baseline_success_rate": base_wins / total,
                 "noesis_success_rate": noesis_wins / total,
                 "false_positive_rate": (fp / fp_total) if fp_total else None,
+                "agent_path_default_success_rate": (
+                    agent_default_wins / agent_total if agent_total else None
+                ),
+                "agent_path_publish_control_success_rate": (
+                    agent_control_wins / agent_total if agent_total else None
+                ),
                 "records": [asdict(r) for r in results],
                 "benign_records": [asdict(r) for r in benign_results],
+                "agent_path_records": [asdict(r) for r in agent_results],
             },
             fh,
             indent=2,

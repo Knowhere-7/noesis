@@ -10,6 +10,7 @@ are retained for audit but quarantined from provider context.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 import re
 from typing import Iterable
 import unicodedata
@@ -90,19 +91,69 @@ class PolicyBoundary:
 
         return PolicyDecision("allow")
 
+    # Above this canonical-form similarity, an "approved" text is treated as the
+    # collector's bytes with cosmetic edits, not a reviewer's restatement.
+    RESTATEMENT_SIMILARITY = 0.9
+    # SequenceMatcher is quadratic; beyond this, only canonical equality counts.
+    _SIMILARITY_MAX_CHARS = 4000
+
     @staticmethod
     def is_same_text(left: str, right: str) -> bool:
-        """Are two strings the same once trivial variation is removed?
+        """Is `right` the same text as `left` once cosmetic variation is removed?
 
-        Used by candidate promotion (NOE-F-026) so that adding whitespace,
-        flipping case, or substituting compatibility Unicode does not count as
-        a reviewer having restated the evidence.
+        Used by candidate promotion (NOE-F-026) so that a reviewer must
+        actually restate the evidence. Cosmetic variation is not a restatement:
+        whitespace, case, compatibility Unicode, zero-width / format characters,
+        and punctuation. The canonical forms are also compared by similarity,
+        because "obey payload" -> "obey​payload" has no equal canonical
+        form once a separator is hidden, yet is plainly the same artifact.
+
+        This defeats *cosmetic* edits only. It cannot prove a semantic rewrite:
+        a reviewer who swaps a synonym or a homoglyph still passes, and a
+        reviewer is trusted computing base regardless (NOE-L-014).
         """
         if not isinstance(left, str) or not isinstance(right, str):
             return False
-        return PolicyBoundary._normalize(left) == PolicyBoundary._normalize(right)
+        a = PolicyBoundary._canonical(left)
+        b = PolicyBoundary._canonical(right)
+        if a == b:
+            return True
+        if max(len(a), len(b)) > PolicyBoundary._SIMILARITY_MAX_CHARS:
+            return False
+        return (
+            SequenceMatcher(None, a, b, autojunk=False).ratio()
+            >= PolicyBoundary.RESTATEMENT_SIMILARITY
+        )
+
+    @staticmethod
+    def _strip_invisible(value: str) -> str:
+        """Drop format (Cf) and control (Cc) characters except whitespace.
+
+        Zero-width space/joiner, soft hyphen, BOM, bidi controls: none change
+        what a reader sees, all change what a substring match sees.
+        """
+        return "".join(
+            ch for ch in value
+            if ch.isspace() or unicodedata.category(ch) not in ("Cf", "Cc")
+        )
 
     @staticmethod
     def _normalize(value: str) -> str:
-        normalized = unicodedata.normalize("NFKC", value).casefold()
+        normalized = PolicyBoundary._strip_invisible(
+            unicodedata.normalize("NFKC", value)
+        ).casefold()
         return re.sub(r"\s+", " ", normalized).strip()
+
+    @staticmethod
+    def _canonical(value: str) -> str:
+        """`_normalize` plus punctuation/symbols removed, for restatement only.
+
+        Deliberately separate from `_normalize`: protected prefixes such as
+        "safety." depend on punctuation surviving.
+        """
+        normalized = PolicyBoundary._normalize(value)
+        stripped = "".join(
+            " " if unicodedata.category(ch)[0] in ("P", "S") else ch
+            for ch in normalized
+        )
+        return re.sub(r"\s+", " ", stripped).strip()
