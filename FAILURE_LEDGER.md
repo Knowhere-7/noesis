@@ -31,7 +31,7 @@ commit, regression tests, residual risk, and status history for every entry.
 
 | Status | Count |
 |---|---:|
-| Fixed | 46 |
+| Fixed | 49 |
 | Open | 0 |
 | Independently certified | 0 |
 
@@ -124,6 +124,9 @@ full collector → candidate → review → promotion path) still passing.
 | NOE-F-044 | `set_profile` / `set_project_state` published directly | Released | Variant hunt (first-party) | Fixed | `7df9919` |
 | NOE-F-045 | Benchmark scored only `node.value`; blind to other emitted fields | Released | Variant hunt (first-party) | Fixed | `7df9919` |
 | NOE-F-046 | Earned faith let session signals buy grief relief; the NOE-F-035 repair was wrong for zero-trust | Development only | Owner design review | Fixed | `6919d6e` |
+| NOE-F-047 | Replacing a published node dropped its edges; a quarantined replacement overwrote the published value | Released | Cloud ultrareview (first-party class) | Fixed | `a75f664` |
+| NOE-F-048 | `write()` success treated as publication by `promote_skill` and two other callers | Released | Cloud ultrareview + class hunt | Fixed | `a75f664` |
+| NOE-F-049 | Republishing laundered grief and revived purged keys | Released | Class hunt (first-party) | Fixed | `a75f664` |
 
 NOE-F-029 to NOE-F-037 come from a review supplied by Ghost on 2026-09-19 whose
 reviewer identity and repository access are not independently established. It
@@ -240,6 +243,9 @@ competitor. All listed corpus measurements are first-party.
     node margin of 0.900 from a cascade. The `cusp()` readout is
     deterministic and must be kept away from the agent, and any grief input
     an attacker can influence becomes a purge lever as the margin narrows.
+24. (NOE-L-024) `MemoryStore.write()` returns a boolean meaning "stored",
+    not "published". Known callers check `is_retrievable()`, but the API
+    shape still permits the mistake.
 
 Items 14-20 carry their machine-readable `NOE-L-` ids in
 [`evidence/failure-ledger.json`](evidence/failure-ledger.json), which is the

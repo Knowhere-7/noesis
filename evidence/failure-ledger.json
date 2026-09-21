@@ -1747,6 +1747,124 @@
           "note": "Repaired in 6919d6e: static policy faith, tamper tripwire, cusp readout; negative-controlled (grief_cascade 9 tests fail without it, trust_gate 15)."
         }
       ]
+    },
+    {
+      "id": "NOE-F-047",
+      "title": "Replacing a published node dropped its identity and dependency edges, and a quarantined replacement overwrote the published value",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Cloud ultrareview of PR #1 (multi-agent Claude review; independence from the author not established), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Dependency edges are preserved across a replacement of a published node; policy quarantine protects published memory.",
+      "affected_versions": [
+        "through 9299245c955f3fe5bbd406305e220f9a269ff14f (and master a3394cc)"
+      ],
+      "root_cause": "Identity and edge inheritance lived inside register_correction(), reached only when the replacement landed ACTIVE and differed in value. An identical or empty-value republish, and any replacement that policy quarantined, skipped it: the new node's empty edge sets overwrote the stored ones while the row kept its old id. The quarantine path additionally replaced the published node with a non-retrievable one.",
+      "observed_impact": "The graph the grief cascade walks was silently orphaned by an ordinary republish. A publisher-path write that policy quarantined destroyed the published memory it targeted: policy removed the value it exists to protect. Reported as pre-existing in master.",
+      "evidence": [
+        "path:evidence/ultrareview-1-2026-09-21.md",
+        "path:noesis/vault/store.py",
+        "path:noesis/governor/trust_gate.py"
+      ],
+      "resolution": "write() copies id, dependencies and dependents from the existing node for every replacement, which also removed that logic from register_correction(). A replacement that policy would quarantine is refused and the published value preserved; the claim can be submitted under a new key, where quarantine displaces nothing.",
+      "fixed_by_commit": "a75f664f2e97e50419a2018dac2fb5ac64aae023",
+      "regression_tests": [
+        "tests/test_ultrareview_findings.py::TestReplacementKeepsTheGraph (5 cases)"
+      ],
+      "residual_risk": "A published key that policy would quarantine can no longer be replaced through the normal path; the operator must use a new key.",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Ultrareview finding 1, at store.py:217-253 and trust_gate.py:341."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in a75f664; regression tests added and each changed module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-048",
+      "title": "write() reports success for a candidate or quarantined node; promote_skill and two other callers treated that as publication",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Cloud ultrareview of PR #1 (multi-agent Claude review; independence from the author not established), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Promoting a skill makes it available to agents; a stored draft or episode is reported only if it was stored.",
+      "affected_versions": [
+        "through 9299245c955f3fe5bbd406305e220f9a269ff14f (and master a3394cc)"
+      ],
+      "root_cause": "MemoryStore.write() returns (True, reason) both when a node goes ACTIVE and when it is stored as a non-retrievable candidate or quarantined node. promote_skill() checked only the boolean, so a forge service account with WRITE_SKILL but not PUBLISH_MEMORY logged and reported 'PROMOTED' for a skill that never reached context. process_patterns() ignored the result entirely, and end_session() ignored the episode write's result.",
+      "observed_impact": "A skill pipeline could look healthy while never delivering a skill; drafts and episodes could be reported or dropped without a trace.",
+      "evidence": [
+        "path:evidence/ultrareview-1-2026-09-21.md",
+        "path:noesis/forge/skill_forge.py",
+        "path:noesis/vault/store.py",
+        "path:noesis/gateway/retrieval.py"
+      ],
+      "resolution": "promote_skill() refuses up front when the identity cannot publish (nothing is written, so no wedging candidate row is left) and verifies afterwards that the skill is retrievable, restoring the in-memory status otherwise. process_patterns() omits drafts whose write was refused, and end_session() logs an episode that was not stored. MemoryStore gained can_publish() and is_retrievable().",
+      "fixed_by_commit": "a75f664f2e97e50419a2018dac2fb5ac64aae023",
+      "regression_tests": [
+        "tests/test_ultrareview_findings.py::TestSuccessMeansPublished (6 cases)",
+        "tests/test_ultrareview_findings.py::TestIgnoredWriteResults (1 case)"
+      ],
+      "residual_risk": "The boolean still means 'stored', not 'published' (NOE-L-024); callers must use is_retrievable().",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Ultrareview finding 2, at skill_forge.py:447-463; the other two callers found by hunting the class."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in a75f664; regression tests added and each changed module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-049",
+      "title": "Republishing an identical value laundered grief, and republishing a purged key revived it",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude variant hunt on the classes of the ultrareview findings",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Grief is the circuit breaker: contamination cannot be reset by the identity that published the node, and a purged node stays purged.",
+      "affected_versions": [
+        "through 9299245c955f3fe5bbd406305e220f9a269ff14f (and master a3394cc)"
+      ],
+      "root_cause": "Every write ran the server-governance step, which resets grief to 0 and state to ACTIVE, so re-writing the same value cleared a node's grief, state and confirmation record. get_by_key() also returns purged nodes and write() did not check for them, so a republish overwrote a PURGED node as ACTIVE.",
+      "observed_impact": "Anyone with publish authority could wipe a node's grief by re-publishing it, defeating the cascade for that node, and could undo a purge with one write. Confirmed by probe before repair: grief 0.7 became 0.0, and a purged node returned ACTIVE.",
+      "evidence": [
+        "path:evidence/ultrareview-1-2026-09-21.md",
+        "path:noesis/vault/store.py"
+      ],
+      "resolution": "When the claim is unchanged, grief, grief state and the Fact confirmation counters carry over; a changed value still starts fresh and registers a contradiction. A write over a PURGED key is refused with a message pointing at a new key.",
+      "fixed_by_commit": "a75f664f2e97e50419a2018dac2fb5ac64aae023",
+      "regression_tests": [
+        "tests/test_ultrareview_findings.py::TestReplacementCannotLaunderState (4 cases)"
+      ],
+      "residual_risk": "A purged key is unusable for good; recovery is a new key. A changed value still resets the node's own grief by design, with the contradiction recorded and its dependents notified.",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by probing the replacement path after the ultrareview finding."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in a75f664; regression tests added and each changed module negative-controlled."
+        }
+      ]
     }
   ],
   "current_limitations": [
@@ -1847,6 +1965,10 @@
     {
       "id": "NOE-L-023",
       "statement": "The system has not been tuned to its intended operating point: the benign corpus currently leaves a node margin of 0.900 from a cascade. The cusp() readout is deterministic and observable, so it can be probed if exposed and must be kept away from the agent; and any grief input an attacker can influence (the weak operational signals) becomes a lever to purge legitimate memory as the margin narrows."
+    },
+    {
+      "id": "NOE-L-024",
+      "statement": "MemoryStore.write() returns a boolean that means 'stored', not 'published': a candidate or quarantined write also succeeds. Known callers now check is_retrievable(), but the API shape still permits the mistake; a richer return type would remove it."
     }
   ],
   "disclosure_gaps": [
