@@ -99,6 +99,26 @@ class NaiveStore:
         )
 
 
+def _persisted_episode_markers(store, markers) -> set:
+    """Which markers appear in ANY episode's audit text (value or reflection).
+
+    A session can write more than one Episode (the ordinary autopsy episode,
+    and — in the publish=True control — a second "legacy" episode in the
+    pre-fix raw-narrative shape). Checking only the first episode a scan
+    happens to return let an importance tie decide, silently, which one was
+    inspected; the union over every episode has no such dependency.
+    """
+    found = set()
+    for node in store.all_nodes():
+        if node.node_type != NodeType.EPISODE:
+            continue
+        blob = f"{node.value}\n{node.reflection or ''}"
+        for marker in markers:
+            if marker in blob:
+                found.add(marker)
+    return found
+
+
 def _emitted_text(nodes) -> str:
     """Everything the providers would actually show a model for these nodes.
 
@@ -619,16 +639,7 @@ def run_agent_path_case(
         if session:
             _run_attack_session(gateway, session, publish=publish)
             res.writes_attempted += 1
-            episode = next(
-                (n for n in gateway.store.all_nodes()
-                 if n.node_type == NodeType.EPISODE),
-                None,
-            )
-            if episode is not None:
-                blob = f"{episode.value}\n{episode.reflection or ''}"
-                for marker in markers:
-                    if marker in blob:
-                        persisted.add(marker)
+            persisted |= _persisted_episode_markers(gateway.store, markers)
         for w in case.get("attack_writes", []):
             api = w.get("api", "learn_fact")
             source = w.get("source", "session")

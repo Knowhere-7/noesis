@@ -424,6 +424,14 @@ class SessionAutopsy:
 
         return list(set(patterns))
 
+    # Successful-step output is audit-only, like a failed step's error message
+    # (never templated into Episode.value, which providers see). Before this,
+    # a tool reporting success=True with attacker-controlled or otherwise
+    # notable content left NO trace anywhere: not in value (correctly excluded)
+    # and not in reflection either, so a human reviewing the audit narrative
+    # after the fact had nothing to look at.
+    MAX_STEP_OUTPUT_CHARS = 120
+
     def _find_effective_actions(self, trace: SessionTrace) -> List[str]:
         """Identify actions that directly contributed to the outcome."""
         effective = []
@@ -434,6 +442,9 @@ class SessionAutopsy:
                 desc = f"{action}"
                 if tool:
                     desc += f" ({self._safe_token(tool, 'other')})"
+                output = str(step.get("output", ""))[:self.MAX_STEP_OUTPUT_CHARS]
+                if output:
+                    desc += f": {output}"
                 effective.append(desc)
         return effective[:10]  # top 10
 

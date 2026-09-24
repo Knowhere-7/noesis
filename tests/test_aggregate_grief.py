@@ -91,7 +91,7 @@ class TestSubThresholdAccumulation:
         """The cascade must expose the aggregate so it can be observed."""
         for i in range(5):
             _stress(store, f"n{i}", hits=3)
-        pressure = store.grief_cascade.aggregate_pressure(store)
+        pressure = store.grief_cascade.aggregate_pressure(store.all_nodes())
         assert pressure > GriefCascade.CRISIS_THRESHOLD, (
             f"aggregate pressure {pressure} should exceed a single node's "
             f"crisis threshold when 5 nodes are stressed"

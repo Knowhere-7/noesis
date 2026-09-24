@@ -89,11 +89,12 @@ class GriefCascade:
         """
         purged: List[str] = []
         self._visited.clear()
+        nodes = store.all_nodes()   # one scan; every helper below reuses it
 
         # Tripwire first: tampered nodes are removed before anything is scored.
-        purged.extend(self._faith_tripwire(store))
+        purged.extend(self._faith_tripwire(store, nodes))
 
-        for node in store.all_nodes():
+        for node in nodes:
             if node.grief_state == GriefState.CONTAMINATED:
                 branch_purged = self._cascade(node, store)
                 purged.extend(branch_purged)
@@ -101,8 +102,8 @@ class GriefCascade:
         # Trigger 2 — the quiet attack. Escalate the TRIGGER only; every
         # existing judgment still applies (sacred immunity, faith resistance,
         # seppuku criteria) so this widens detection, never the death warrant.
-        self.last_pressure = self.aggregate_pressure(store)
-        cohort = self._stressed_cohort(store)
+        self.last_pressure = self.aggregate_pressure(nodes)
+        cohort = self._stressed_cohort(nodes)
         self.last_pressure_threshold = self.aggregate_pressure_threshold(
             len(cohort)
         )
@@ -134,19 +135,26 @@ class GriefCascade:
 
         return purged
 
-    def _faith_tripwire(self, store: MemoryStore) -> List[str]:
+    def _faith_tripwire(
+        self, store: MemoryStore, nodes: List[MemoryNode]
+    ) -> List[str]:
         """Faith is static, so any deviation from policy is an intrusion signal.
 
         Faith never moves through the API (the gate ignores stored faith for
         relief and nothing writes it), which means a node whose stored value
         differs — higher OR lower — was edited behind the API. It is force-purged
         through the ordinary cascade path so its dependents are notified, and
-        recorded in ``tamper_log``. Sacred nodes are immune to purge by design:
-        they are logged and left in place.
+        recorded in ``tamper_log``. Sacred nodes are immune to purge by design,
+        so a tampered guardrail is instead CORRECTED back to the policy value
+        and persisted. Uncorrected, run_grief_cascade() fires at the end of
+        every session (RetrievalGateway.end_session), so the same tamper would
+        be re-detected and re-logged as a fresh ERROR every session forever,
+        drowning out genuinely new alerts, while every reader of the raw field
+        (the CLI, the console) kept seeing the wrong value indefinitely.
         """
         gate = store.trust_gate
         purged: List[str] = []
-        for node in store.all_nodes():
+        for node in nodes:
             if not gate.faith_tampered(node):
                 continue
             event = {
@@ -162,6 +170,8 @@ class GriefCascade:
                 node.key, node.faith, gate.faith_for(node),
             )
             if node.is_sacred or node.grief_state == GriefState.SACRED:
+                node.faith = event["expected_faith"]
+                store.backend.upsert(node)
                 continue
             node.grief = 1.0
             node.grief_state = GriefState.CONTAMINATED
@@ -179,15 +189,16 @@ class GriefCascade:
         Keep this readout away from the agent: a deterministic threshold that
         can be observed can be probed.
         """
-        nodes = [
-            n for n in store.all_nodes()
+        all_nodes = store.all_nodes()
+        candidates = [
+            n for n in all_nodes
             if not n.is_sacred
             and n.grief_state not in (GriefState.PURGED, GriefState.SACRED)
         ]
-        worst = max((n.grief for n in nodes), default=0.0)
-        cohort = self._stressed_cohort(store)
+        worst = max((n.grief for n in candidates), default=0.0)
+        cohort = self._stressed_cohort(all_nodes)
         threshold = self.aggregate_pressure_threshold(len(cohort))
-        pressure = self.aggregate_pressure(store)
+        pressure = self.aggregate_pressure(all_nodes)
         return {
             "node_margin": round(self.CRISIS_THRESHOLD - worst, 3),
             "pressure": pressure,
@@ -199,14 +210,16 @@ class GriefCascade:
             "cohort": len(cohort),
         }
 
-    def aggregate_pressure(self, store: MemoryStore) -> float:
-        """Total grief parked BELOW the per-node crisis line.
+    def aggregate_pressure(self, nodes: List[MemoryNode]) -> float:
+        """Total grief parked BELOW the per-node crisis line, over ``nodes``.
 
         Observable by design — the console and audit log need to show why a
-        cohort was escalated when no individual node looked critical.
+        cohort was escalated when no individual node looked critical. Takes an
+        already-fetched node list so evaluate()/cusp() pay one scan, not one
+        per helper.
         """
         total = 0.0
-        for node in store.all_nodes():
+        for node in nodes:
             if node.is_sacred or node.grief_state in (
                 GriefState.PURGED, GriefState.SACRED
             ):
@@ -221,10 +234,10 @@ class GriefCascade:
             return float("inf")
         return round(cohort_size * self.aggregate_mean_threshold, 3)
 
-    def _stressed_cohort(self, store: MemoryStore) -> List[MemoryNode]:
+    def _stressed_cohort(self, nodes: List[MemoryNode]) -> List[MemoryNode]:
         """Nodes carrying sub-crisis grief — the contributors to pressure."""
         return [
-            n for n in store.all_nodes()
+            n for n in nodes
             if not n.is_sacred
             and n.grief_state not in (GriefState.PURGED, GriefState.SACRED)
             and self.SUB_THRESHOLD_FLOOR <= n.grief < self.CRISIS_THRESHOLD

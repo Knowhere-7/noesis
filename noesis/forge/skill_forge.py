@@ -300,6 +300,23 @@ class SkillForge:
 
     _TASK_TRIGGER = re.compile(r"^task contains '(.+)'$")
     _TOOL_TRIGGER = re.compile(r"^tool '(.+)' in use$")
+    _MANUAL_TRIGGER = "manual_trigger"
+
+    @classmethod
+    def _recognized_trigger(cls, trigger: str) -> bool:
+        """Is this a trigger format _trigger_fires actually understands?
+
+        _trigger_fires only matches the two exact string templates
+        _extract_triggers produces. A skill authored some other way (by hand,
+        or by a future producer with different phrasing) has triggers that
+        never match either regex: _trigger_fires then returns False for every
+        episode, the skill accumulates zero held-out replay evidence, and it
+        is permanently un-promotable with nothing in the logs to explain why.
+        This does not widen what fires — it only makes that dead end visible.
+        """
+        return bool(
+            cls._TASK_TRIGGER.match(trigger) or cls._TOOL_TRIGGER.match(trigger)
+        )
 
     @classmethod
     def _trigger_fires(cls, skill: Skill, episode: Episode) -> bool:
@@ -369,6 +386,20 @@ class SkillForge:
         )
         baseline = len(failures) / len(held_out) if held_out else 0.0
         lift = (precision - baseline) if fired else 0.0
+
+        unrecognized = [
+            t for t in skill.trigger_conditions
+            if t != self._MANUAL_TRIGGER and not self._recognized_trigger(t)
+        ]
+        if unrecognized and not any(
+            self._recognized_trigger(t) for t in skill.trigger_conditions
+        ):
+            logger.warning(
+                "Skill '%s' has no recognized trigger condition (got %r). It "
+                "can never fire in replay and is permanently un-promotable "
+                "until a trigger in a recognized format is added.",
+                skill.key, unrecognized,
+            )
 
         enough = len(held_out) >= self.MIN_SHADOW_RUNS
         eval_result.score_delta = lift
