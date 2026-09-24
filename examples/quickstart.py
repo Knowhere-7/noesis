@@ -86,11 +86,13 @@ gateway.install_guardrail(
 
 # Ordinary collectors can ingest raw evidence, but it stays out of model
 # context until a separately authorized publisher rewrites and promotes it.
-accepted, reason = collector_gateway.learn_fact(
+accepted = collector_gateway.learn_fact(
     "intake.external_build",
     "Unreviewed external monitor payload: build 4421 completed.",
 )
-assert accepted, reason
+# .stored: something was written. .published would be False here: the fact is
+# held as a candidate. WriteResult has no truth value, so you must say which.
+assert accepted.stored, accepted.reason
 candidate = collector_gateway.store.get("intake.external_build")
 assert candidate is not None
 promoted, reason = gateway.promote_candidate(
@@ -102,6 +104,9 @@ assert promoted, reason
 
 # ── 3. Set agent identity and project context ─────────────────────────
 
+# Always-loaded context is published by an explicit operator decision
+# (publish=True). Called without it, set_profile/set_project_state hold the
+# value as a candidate for review, exactly like learn_fact.
 gateway.set_profile(
     key="agent",
     role="Senior Python developer specializing in backend systems",
@@ -111,6 +116,7 @@ gateway.set_profile(
         "Prefer stdlib over third-party when possible",
     ],
     preferences={"language": "python", "style": "pragmatic"},
+    publish=True,
 )
 
 gateway.set_project_state(
@@ -121,6 +127,7 @@ gateway.set_project_state(
         {"what": "PostgreSQL", "why": "ACID compliance, JSON support"},
     ],
     blockers=["Waiting on DB credentials from infra team"],
+    publish=True,
 )
 
 # ── 4. Simulate three agent sessions ──────────────────────────────────
@@ -144,8 +151,25 @@ gateway.record_step("write", "routes/users.py", "POST /users endpoint", "write",
 gateway.record_step("bash", "pytest", "4 tests passed", "bash", True)
 gateway.record_tokens(prompt_tokens=2000, completion_tokens=800)
 
-# Learn a fact during the session
-gateway.learn_fact("auth_method", "Project uses JWT with RS256 signing")
+# Learn a fact during the session. `quickstart-owner` holds every permission,
+# including PUBLISH_MEMORY, but learn_fact() stores EVIDENCE by default: an agent
+# that has just read untrusted input must not publish by virtue of the identity
+# it runs as. The fact is a non-retrievable candidate until a reviewer restates
+# what was actually verified.
+learned = gateway.learn_fact(
+    "auth_method",
+    "Repo scan output: project uses JWT with RS256 signing",
+    source="tool:repo_scan",
+)
+assert learned.stored and not learned.published, learned.reason
+pending = gateway.store.get("auth_method")
+assert pending is not None and pending.retrieval_state.name == "CANDIDATE"
+promoted, reason = gateway.promote_candidate(
+    pending.id,
+    approved_value="Auth uses JWT with RS256 signing (verified in auth/config.py).",
+    rationale="Confirmed against the signing config, not the scan output.",
+)
+assert promoted, reason
 
 # End session — autopsy runs automatically
 result1 = gateway.end_session(

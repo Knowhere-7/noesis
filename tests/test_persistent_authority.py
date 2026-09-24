@@ -48,11 +48,13 @@ def test_revocation_applies_to_the_next_write_and_survives_restart(tmp_path):
     )
 
     try:
-        allowed, _ = store.write(Fact(key="before", value="authorized"))
+        _r = store.write(Fact(key="before", value="authorized"))
+        allowed, _ = _r.stored, _r.reason
         assert allowed is True
 
         assert resolver.revoke("agent-1") is True
-        allowed, reason = store.write(Fact(key="after", value="revoked"))
+        _r = store.write(Fact(key="after", value="revoked"))
+        allowed, reason = _r.stored, _r.reason
         assert allowed is False
         assert "no active authority" in reason
     finally:

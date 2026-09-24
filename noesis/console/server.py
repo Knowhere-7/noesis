@@ -45,6 +45,44 @@ _gateway: Optional[RetrievalGateway] = None
 _console_token: Optional[str] = None
 
 
+def build_context_payload(gateway: RetrievalGateway, fmt: str) -> Dict[str, Any]:
+    """Render the assembled context for the console preview.
+
+    The endpoint used to install an adapter on the SHARED gateway and then call
+    ``get_context()``, which refuses to run whenever a provider is configured —
+    so every provider format raised, and a request for one format silently
+    changed the gateway for every later caller (R9). This formats through a
+    request-local adapter and leaves the gateway untouched.
+
+    Provider formats return role-separated ``messages`` (guardrails in the
+    system role, memory as user-role data) plus a readable ``formatted``
+    rendering of them; ``plain`` returns only ``formatted``.
+    """
+    from noesis.gateway.providers import (
+        ClaudeAdapter, OpenAIAdapter, OllamaAdapter,
+    )
+
+    adapters = {
+        "claude": ClaudeAdapter,
+        "openai": OpenAIAdapter,
+        "ollama": OllamaAdapter,
+    }
+    nodes = gateway.store.assemble_context()
+    payload: Dict[str, Any] = {"node_count": len(nodes), "format": fmt}
+
+    adapter_cls = adapters.get(fmt)
+    if adapter_cls is None:
+        payload["formatted"] = gateway._format_plain(nodes)
+        return payload
+
+    messages = adapter_cls().format_messages(nodes)
+    payload["messages"] = messages
+    payload["formatted"] = "\n\n".join(
+        f"[{message['role']}]\n{message['content']}" for message in messages
+    )
+    return payload
+
+
 def _valid_bearer(header: Optional[str], expected_token: str) -> bool:
     """Validate an exact bearer token without timing-sensitive comparison."""
     if not header or not expected_token:
@@ -225,30 +263,7 @@ class ConsoleHandler(SimpleHTTPRequestHandler):
         self._json_response(detail)
 
     def _api_context(self, fmt: str):
-        from noesis.gateway.providers import (
-            ClaudeAdapter, OpenAIAdapter, OllamaAdapter,
-        )
-
-        adapters = {
-            "claude": ClaudeAdapter,
-            "openai": OpenAIAdapter,
-            "ollama": OllamaAdapter,
-        }
-
-        adapter_cls = adapters.get(fmt)
-        if adapter_cls:
-            _gateway.provider = adapter_cls()
-        else:
-            _gateway.provider = None
-
-        context = _gateway.get_context()
-        nodes = _gateway.get_context_nodes()
-
-        self._json_response({
-            "formatted": context,
-            "node_count": len(nodes),
-            "format": fmt,
-        })
+        self._json_response(build_context_payload(_gateway, fmt))
 
     def _api_cascade_log(self):
         # Read from cascade_log table in SQLite

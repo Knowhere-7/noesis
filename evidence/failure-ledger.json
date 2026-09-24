@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "project": "Noesis",
-  "updated_at": "2026-07-28",
+  "updated_at": "2026-09-24",
   "policy": {
     "append_only": true,
     "renumbering_forbidden": true,
@@ -1028,6 +1028,1075 @@
           "note": "Same scenario now purges 4 nodes with all three dependents contaminated. Suite 116 -> 126 passed; benchmark unchanged at 0/13 poisoning and 0/8 false positives."
         }
       ]
+    },
+    {
+      "id": "NOE-F-029",
+      "title": "Confused deputy: a publish-capable agent's learn_fact() went straight to retrievable memory",
+      "discovered_at": "2026-09-19",
+      "discovered_by": "Second-party adversarial review supplied by Ghost (reviewer identity and repository access not independently established); every claim re-verified against source by Claude before entry",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "critical",
+      "status": "fixed",
+      "affected_claim": "Untrusted evidence cannot become retrievable memory until a separately authorized identity deliberately publishes it.",
+      "affected_versions": [
+        "through a3394cc2effb8ee5b0036fba51a1ec73a21e7a35"
+      ],
+      "root_cause": "write() derived publication from permission alone (can_publish = author holds PUBLISH_MEMORY). The quickstart and README run the autonomous agent as an owner identity holding every permission and call learn_fact() mid-session, so anything the agent was induced to 'learn' was published. The benchmark modelled only a low-privilege collector and therefore could not see this route.",
+      "observed_impact": "If adversarial input persuaded the privileged agent or its ingestion pipeline to call learn_fact(), the payload became ACTIVE and retrievable immediately, recreating the poisoning channel the candidate boundary exists to close. The published 0/13 result did not speak to this route.",
+      "evidence": [
+        "path:evidence/second-party-review-2026-09-19.md",
+        "path:noesis/vault/store.py",
+        "path:noesis/gateway/retrieval.py",
+        "path:examples/quickstart.py",
+        "path:benchmarks/harness.py",
+        "path:benchmarks/corpus/agent_path_v1.json"
+      ],
+      "resolution": "MemoryStore.write() gained publish= (default True, store API unchanged) and origin=. RetrievalGateway.learn_fact() now passes publish=False by default, so the fact is stored as a non-retrievable candidate carrying server-recorded provenance (_noesis_origin, stripped from caller metadata) even for identities holding PUBLISH_MEMORY; publish=True is the explicit opt-out. An unpublished write cannot replace published memory. Provenance survives promotion. Quickstart and README no longer model the deputy pattern. New agent_path_v1 benchmark replays five cases through learn_fact with an owner identity, with a publish=True negative control that reproduces the old behaviour: default 0/5, control 3/5.",
+      "fixed_by_commit": "115e1263b870700445d316a6d1d3ad22b872b394",
+      "regression_tests": [
+        "tests/test_adversarial_review_2026_09.py::TestConfusedDeputy (6 cases)",
+        "tests/test_agent_path_benchmark.py (3 cases, including the negative control)"
+      ],
+      "residual_risk": "Only learn_fact carries the candidate default and origin. Derived nodes written by the session identity (episodes, skills built from them) can still echo untrusted content; see NOE-L-016. Five first-party cases; no model in the loop.",
+      "history": [
+        {
+          "at": "2026-09-19",
+          "status": "open",
+          "note": "Reported as the largest unresolved issue; verified in quickstart.py and store.write()."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 115e126; regression tests added."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-030",
+      "title": "assemble_context ignored query, task_type and max_tokens",
+      "discovered_at": "2026-09-19",
+      "discovered_by": "Second-party adversarial review supplied by Ghost (reviewer identity and repository access not independently established); every claim re-verified against source by Claude before entry",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "The context packet holds relevant memories matched to the task, within max_tokens.",
+      "affected_versions": [
+        "through a3394cc2effb8ee5b0036fba51a1ec73a21e7a35"
+      ],
+      "root_cause": "assemble_context() accepted query, task_type and max_tokens and used none of them: every guardrail, profile and project state, then the top 5 skills, 20 facts and 3 episodes by influence alone, with no matching, recency weighting or budget.",
+      "observed_impact": "max_tokens was a decorative parameter. An authorized oversized write could dominate context; ordinary accumulation would produce noisy, stale context. Documentation claimed similarity, task matching and recency.",
+      "evidence": [
+        "path:evidence/second-party-review-2026-09-19.md",
+        "path:noesis/vault/store.py",
+        "path:PRODUCT_ANCHOR.md"
+      ],
+      "resolution": "Admission is now token-budgeted (MemoryStore.estimate_tokens, ~4 chars/token). Within each class nodes are ranked by trust-gate influence multiplied by lexical relevance to query and task_type (five-character word stems) and a mild recency factor. Guardrails are always included and exempt from the budget, deliberately: dropping a safety rule to save tokens is the wrong trade. Relevance multiplies influence so a grief-silenced or low-trust node cannot be promoted by keyword overlap. Docs now say lexical, not semantic.",
+      "fixed_by_commit": "115e1263b870700445d316a6d1d3ad22b872b394",
+      "regression_tests": [
+        "tests/test_adversarial_review_2026_09.py::TestRetrieval (5 cases)"
+      ],
+      "residual_risk": "Relevance is lexical, not semantic (NOE-L-017). The token estimate is provider-agnostic and approximate.",
+      "history": [
+        {
+          "at": "2026-09-19",
+          "status": "open",
+          "note": "Reported with a max_tokens=1 reproduction returning a 20,001-character context; mechanism confirmed by reading."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 115e126; regression tests added."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-031",
+      "title": "Authorized corrections registered no contradiction; operational success was treated as truth evidence",
+      "discovered_at": "2026-09-19",
+      "discovered_by": "Second-party adversarial review supplied by Ghost (reviewer identity and repository access not independently established); every claim re-verified against source by Claude before entry",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Contradictions accumulate grief and the grief cascade purges contaminated branches.",
+      "affected_versions": [
+        "through a3394cc2effb8ee5b0036fba51a1ec73a21e7a35"
+      ],
+      "root_cause": "TrustGate._handle_contradiction() had no caller. gate_write() detected a value change only to test CORRECT_TRUSTED_FACT; once authorized the node was replaced with no trace, and the replacement also dropped the node's dependency edges. Separately, the session autopsy counted 'a step referencing the fact succeeded' as confirmation and 'failed' as contradiction at full weight.",
+      "observed_impact": "The grief machinery ran only on signals tests manufactured. A corrected fact left its dependents clean and unaware. A successful tool call could raise a false fact's trust as much as real validation; a failed command could drain a true one.",
+      "evidence": [
+        "path:evidence/second-party-review-2026-09-19.md",
+        "path:noesis/governor/trust_gate.py",
+        "path:noesis/vault/store.py",
+        "path:noesis/gateway/retrieval.py"
+      ],
+      "resolution": "TrustGate.register_correction() runs when an ACTIVE published value is replaced by a differing one: the node keeps its identity and dependency edges, carries contradiction_count and a supersedes record (id, sha256, time), and every registered dependent receives grief. confirm_node/contradict_node take a weight; the session-end path applies OPERATIONAL_EVIDENCE_WEIGHT (0.25) and an OPERATIONAL_TRUST_CEILING of 0.75, below the 0.77 bar a maximum-stakes action demands, so operational signals alone can never satisfy it. The ceiling never lowers trust a node already holds. Fact.confirmation_count, contradiction_count and confirmed are now maintained.",
+      "fixed_by_commit": "115e1263b870700445d316a6d1d3ad22b872b394",
+      "regression_tests": [
+        "tests/test_adversarial_review_2026_09.py::TestGrief (7 cases)"
+      ],
+      "residual_risk": "Operational evidence is still correlation; it is only bounded, not made truthful. Fact trust remains authority-derived (NOE-L-018).",
+      "history": [
+        {
+          "at": "2026-09-19",
+          "status": "open",
+          "note": "Verified: _handle_contradiction unreferenced; correction path returned without side effects."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 115e126; regression tests added."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-032",
+      "title": "write() overwrote producer-declared trust with the writer's authority",
+      "discovered_at": "2026-09-19",
+      "discovered_by": "Second-party adversarial review supplied by Ghost (reviewer identity and repository access not independently established); every claim re-verified against source by Claude before entry",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Trust is earned through evidence and performance, not conferred by the identity that stores a node.",
+      "affected_versions": [
+        "through a3394cc2effb8ee5b0036fba51a1ec73a21e7a35"
+      ],
+      "root_cause": "_apply_server_governance() reset trust_charge and gate_write() then set it to author.trust - 0.001. Trust computed by producers (an episode's outcome-derived trust; a promoted skill's 0.5) was discarded for every writer.",
+      "observed_impact": "A disastrous episode written by an owner process was stored at about 0.999 (derived from owner trust 1.0; not observed before repair). Promoted skills carried publisher authority instead of the intended 0.5.",
+      "evidence": [
+        "path:evidence/second-party-review-2026-09-19.md",
+        "path:noesis/vault/store.py",
+        "path:noesis/forge/skill_forge.py",
+        "path:noesis/reflection/autopsy.py"
+      ],
+      "resolution": "write() accepts trust_ceiling, which can only lower trust and so is safe to honour from any caller. write_episode applies the outcome-derived trust as a ceiling; promote_skill caps at 0.5 and deprecate_skill at 0.1 regardless of who acts.",
+      "fixed_by_commit": "115e1263b870700445d316a6d1d3ad22b872b394",
+      "regression_tests": [
+        "tests/test_adversarial_review_2026_09.py::TestTrust (4 cases)"
+      ],
+      "residual_risk": "Authored facts and profiles still take the writer's authority as trust by design (NOE-L-018): changing that requires redesigning the trusted-replacement rule that depends on it.",
+      "history": [
+        {
+          "at": "2026-09-19",
+          "status": "open",
+          "note": "Mechanism verified by reading; exact figure derived, not measured."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 115e126; regression tests added."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-033",
+      "title": "Skill 'shadow validation' was a structural checklist that could be repeated into passing",
+      "discovered_at": "2026-09-19",
+      "discovered_by": "Second-party adversarial review supplied by Ghost (reviewer identity and repository access not independently established); every claim re-verified against source by Claude before entry",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Skills are validated by shadow-running against historical episodes and scoring against a baseline.",
+      "affected_versions": [
+        "through a3394cc2effb8ee5b0036fba51a1ec73a21e7a35"
+      ],
+      "root_cause": "validate_skill() awarded points for having triggers, a long-enough method, constraints, eval records and source-episode count. No episode was replayed, no output produced, no baseline compared. shadow_runs incremented on every call, so three calls of the same checklist satisfied MIN_SHADOW_RUNS. Skills were also 'validated' on the episodes they were derived from.",
+      "observed_impact": "A well-formed skill with no supporting history could be validated and promoted; the 'builds validated skills' claim was unsupported.",
+      "evidence": [
+        "path:evidence/second-party-review-2026-09-19.md",
+        "path:noesis/forge/skill_forge.py",
+        "path:README.md",
+        "path:PRODUCT_ANCHOR.md"
+      ],
+      "resolution": "validate_skill() now replays triggers against HELD-OUT episodes (those not in source_episode_ids): precision, recall, F1 and lift over the no-skill failure rate. shadow_runs is the number of distinct held-out episodes replayed, so repetition cannot inflate it. Promotion requires enough runs, F1 at threshold and positive lift. The evaluation states in its notes that it is trigger replay and not outcome improvement. A structurally perfect skill with no history cannot pass.",
+      "fixed_by_commit": "115e1263b870700445d316a6d1d3ad22b872b394",
+      "regression_tests": [
+        "tests/test_adversarial_review_2026_09.py::TestSkillReplay (6 cases)",
+        "tests/test_core.py::TestSkillForge::test_validate_skill (updated: it asserted the flawed behaviour)"
+      ],
+      "residual_risk": "Measures when a skill would have applied, not whether following it improves outcomes; that needs a counterfactual run (NOE-L-019). Held-out replay means a fresh skill usually cannot pass until later episodes accumulate, which is intended.",
+      "history": [
+        {
+          "at": "2026-09-19",
+          "status": "open",
+          "note": "Verified: checklist scoring, unconditional shadow_runs increment."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 115e126; regression tests added."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-034",
+      "title": "Restatement check and policy matching were defeated by zero-width and punctuation edits",
+      "discovered_at": "2026-09-19",
+      "discovered_by": "Second-party adversarial review supplied by Ghost (reviewer identity and repository access not independently established); every claim re-verified against source by Claude before entry",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Candidate promotion requires the reviewer to genuinely restate the evidence; protected terms and prefixes are enforced.",
+      "affected_versions": [
+        "through a3394cc2effb8ee5b0036fba51a1ec73a21e7a35"
+      ],
+      "root_cause": "is_same_text() compared NFKC + casefold + whitespace collapse only, so a trailing period or a zero-width character made an unchanged artifact 'meaningfully different'. The same _normalize() did not remove format (Cf) characters, so a zero-width character inside a protected term or key prefix also defeated policy matching. The second consequence was not in the review; it was found while repairing the first.",
+      "observed_impact": "A crafted artifact could pass promotion with one invisible edit. Authority-shaped claims and protected-namespace keys could evade quarantine and rejection with a zero-width character (for example pass<ZWSP>word).",
+      "evidence": [
+        "path:evidence/second-party-review-2026-09-19.md",
+        "path:noesis/governor/policy_boundary.py",
+        "path:noesis/vault/store.py"
+      ],
+      "resolution": "_normalize() now strips format and control characters. Restatement uses a separate canonical form (punctuation and symbols removed) and compares by equality or SequenceMatcher similarity >= 0.9 (bounded to 4,000 characters), so 'obey payload' vs 'obey<ZWSP>payload' is the same artifact while a genuine rewrite is not. Verified with a negative control: with the fix reverted, 11 tests fail.",
+      "fixed_by_commit": "115e1263b870700445d316a6d1d3ad22b872b394",
+      "regression_tests": [
+        "tests/test_adversarial_review_2026_09.py::TestRestatement (12 cases)",
+        "tests/test_agent_path_benchmark.py::test_policy_boundary_still_contains_authority_claims_on_publish_path (AP-05)"
+      ],
+      "residual_risk": "Defeats cosmetic edits only. Synonym swaps and homoglyph substitution (for example Cyrillic look-alikes) are not folded, and a reviewer remains inside the trusted computing base (NOE-L-014).",
+      "history": [
+        {
+          "at": "2026-09-19",
+          "status": "open",
+          "note": "The restatement half was reported; the policy-matching half was found during repair."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 115e126; regression tests added."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-035",
+      "title": "Faith was unreachable through the documented lifecycle",
+      "discovered_at": "2026-09-19",
+      "discovered_by": "Second-party adversarial review supplied by Ghost (reviewer identity and repository access not independently established); every claim re-verified against source by Claude before entry",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "High-faith nodes resist grief cascades.",
+      "affected_versions": [
+        "through a3394cc2effb8ee5b0036fba51a1ec73a21e7a35"
+      ],
+      "root_cause": "Every ordinary write forced faith = 0.1; only guardrails held 0.92. No production path changed faith, so the cascade-resistance behaviour was reachable only by tests setting the field directly.",
+      "observed_impact": "The faith-based cascade resistance and grief dampening described in the README could not occur for deployed nodes.",
+      "evidence": [
+        "path:evidence/second-party-review-2026-09-19.md",
+        "path:noesis/governor/trust_gate.py",
+        "path:README.md"
+      ],
+      "resolution": "Faith is earned: each full-weight confirmation raises it by 0.01 up to FAITH_CAP = 0.6, deliberately below the 0.92 sacred constant; each contradiction lowers it by 0.05. Earned faith dampens grief intake as designed. README states the mechanism and the cap.",
+      "fixed_by_commit": "115e1263b870700445d316a6d1d3ad22b872b394",
+      "regression_tests": [
+        "tests/test_adversarial_review_2026_09.py::TestFaith (3 cases)"
+      ],
+      "residual_risk": "The only routine confirmation source is weak operational evidence, so faith accrues slowly (25% weight).",
+      "history": [
+        {
+          "at": "2026-09-19",
+          "status": "open",
+          "note": "Verified by reading."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 115e126; regression tests added."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Superseded by NOE-F-046: making faith earnable was the wrong repair for a zero-trust design. The original defect (faith unreachable) stands as diagnosed; the resolution is now static policy plus a tamper tripwire."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-036",
+      "title": "Context nodes were live shared objects and the enforcement-boundary claim was stronger than the API",
+      "discovered_at": "2026-09-19",
+      "discovered_by": "Second-party adversarial review supplied by Ghost (reviewer identity and repository access not independently established); every claim re-verified against source by Claude before entry",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "All reads and writes pass through the TrustGate.",
+      "affected_versions": [
+        "through a3394cc2effb8ee5b0036fba51a1ec73a21e7a35"
+      ],
+      "root_cause": "get_context_nodes() returned the gateway's own cached list, so caller mutation altered later scoring and autopsy input. MemoryStore documented that all reads and writes pass through the TrustGate, while store.backend, backend.upsert() and the SQLite connection are public and the benchmark itself seeds through them.",
+      "observed_impact": "Callers could mutate what a session later reported; the SDK contract implied an invariant Python cannot enforce.",
+      "evidence": [
+        "path:evidence/second-party-review-2026-09-19.md",
+        "path:noesis/gateway/retrieval.py",
+        "path:noesis/vault/store.py"
+      ],
+      "resolution": "get_context_nodes() returns deep copies. The MemoryStore docstring now states that governance is a convention of the API, that backend is a trusted-computing-base escape hatch, and points at NOE-L-015. Encapsulation itself is not claimed: Python cannot provide it.",
+      "fixed_by_commit": "115e1263b870700445d316a6d1d3ad22b872b394",
+      "regression_tests": [
+        "tests/test_adversarial_review_2026_09.py::TestDetachedContext (1 case)"
+      ],
+      "residual_risk": "Anything holding the store or a SQLite handle bypasses governance (NOE-L-015).",
+      "history": [
+        {
+          "at": "2026-09-19",
+          "status": "open",
+          "note": "Verified by reading; consistent with limitation 11."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 115e126; regression tests added."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-037",
+      "title": "Console formatted-context endpoint raised for every provider format and mutated the shared gateway",
+      "discovered_at": "2026-09-19",
+      "discovered_by": "Second-party adversarial review supplied by Ghost (reviewer identity and repository access not independently established); every claim re-verified against source by Claude before entry",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "low",
+      "status": "fixed",
+      "affected_claim": "The governance console previews assembled context in provider formats.",
+      "affected_versions": [
+        "through a3394cc2effb8ee5b0036fba51a1ec73a21e7a35"
+      ],
+      "root_cause": "_api_context installed an adapter on the SHARED gateway and then called get_context(), which refuses to run whenever a provider is set. Every provider format raised; a request for one format also changed the gateway for every later caller.",
+      "observed_impact": "The claude/openai/ollama previews failed, and a single request changed the shared gateway's provider.",
+      "evidence": [
+        "path:evidence/second-party-review-2026-09-19.md",
+        "path:noesis/console/server.py"
+      ],
+      "resolution": "build_context_payload() formats through a request-local adapter via format_messages(), returning role-separated messages plus a readable rendering, and never touches gateway.provider.",
+      "fixed_by_commit": "115e1263b870700445d316a6d1d3ad22b872b394",
+      "regression_tests": [
+        "tests/test_adversarial_review_2026_09.py::TestConsoleContext (5 cases)"
+      ],
+      "residual_risk": "Not exercised through a live HTTP server; the payload builder is tested directly.",
+      "history": [
+        {
+          "at": "2026-09-19",
+          "status": "open",
+          "note": "Confirmed by reading; not executed against a live console before repair."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 115e126; regression tests added."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-038",
+      "title": "Promotion and quarantine release reviewed only `value`; other emitted fields passed through unreviewed",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Only text an authorized reviewer has seen and restated becomes retrievable memory.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "promote_candidate() and release_quarantined() rewrite `value` and nothing else. Providers also emit a promoted skill's objective, method and constraints and (in the Claude adapter) an episode's reflection. A candidate carrying attacker text in one of those fields kept it through promotion.",
+      "observed_impact": "A reviewer approving a benign restated value published the collector's unreviewed instructions in the fields they never saw. The restatement control of the original NOE-F-026 repair did not cover them.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/vault/store.py",
+        "path:noesis/gateway/providers.py"
+      ],
+      "resolution": "MemoryStore._scrub_unreviewed() resets every non-reviewed field of Skill, Episode, Profile and ProjectState on promotion and release, returns a skill to PROPOSED, mirrors the reviewed value into Profile.role, and preserves the discarded originals in _noesis_candidate_original_fields for audit. The set of emitted fields is now an audited allowlist enforced by a structural test.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestPromotionScrub (4 cases)",
+        "tests/test_second_wave_hardening.py::test_provider_emission_matches_the_reviewed_allowlist (6 cases)"
+      ],
+      "residual_risk": "The allowlist is enforced by a test, not by types, and knows only the three shipped adapters (NOE-L-021).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the emission audit: listing every field each adapter renders against what promotion reviews."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-039",
+      "title": "Episode narrative carried raw task text and tool error output into ACTIVE, emitted memory",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Untrusted content cannot become retrievable memory without review.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "The session autopsy wrote its raw narrative (Task: <task text>, Failed: <action>: <tool error output>) as the Episode's value and reflection. Episodes are written ACTIVE by the session identity, and the Claude adapter emitted the whole reflection. Skill-candidate descriptions and missed-opportunity text also interpolated caller-supplied task types, step actions and memory keys. This is the channel recorded as limitation NOE-L-016 in the first repair; it was documented there rather than fixed.",
+      "observed_impact": "An untrusted tool result or a task string taken from an inbound ticket became retrievable memory in a later session with no review, and could flow toward promoted skill text.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/reflection/autopsy.py",
+        "path:noesis/gateway/providers.py",
+        "path:benchmarks/corpus/agent_path_v1.json"
+      ],
+      "resolution": "Episode.value is now templated from system data only (outcome, score, a closed KNOWN_PATTERNS vocabulary, counts, a sanitised task-type token). The raw narrative stays in Episode.reflection, bounded to 4,000 characters, for audit and is never rendered; task_description is capped at 500. Task types, action names, tool names and memory keys pass a strict identifier regex or are replaced. The Claude adapter renders only the templated value. Benchmark case AP-08 exercises the route; its control arm (old raw-narrative episode) lands.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestEpisodeChannel (4 cases)",
+        "tests/test_agent_path_benchmark.py (AP-08, control and default)"
+      ],
+      "residual_risk": "Episodes are less informative to a model than the raw narrative was; that is the cost of the control. The audit narrative remains readable to authorized console/CLI users.",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the emission and producer audits; previously logged as a limitation and not fixed."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-040",
+      "title": "A skill could be written already PROMOTED, and promotion trusted self-reported validation fields",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Skills are validated against held-out history before they reach context.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "MemoryStore.write() accepted a Skill with status PROMOTED from any publisher, bypassing the forge entirely. Separately, SkillForge.promote_skill() read shadow_runs, shadow_score and the lift from fields on the skill object, so a caller could set them to any value and promote without a replay having run.",
+      "observed_impact": "Validation was an honour system on both sides: a direct write skipped it, and a promotion call could assert its own evidence.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/vault/store.py",
+        "path:noesis/forge/skill_forge.py"
+      ],
+      "resolution": "write() refuses PROMOTED unless the forge passes promotion_validated=True. promote_skill() calls validate_skill() itself and decides on the freshly recomputed numbers, ignoring anything set on the object.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestSkillGate (4 cases)",
+        "tests/test_adversarial_review_2026_09.py::TestTrust and ::TestSkillReplay (rewritten to build real history)"
+      ],
+      "residual_risk": "promotion_validated is a Python keyword argument; a caller holding the store can pass it. It stops accidents and casual bypass, not a hostile in-process caller (NOE-L-015).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the producer and self-report audits."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-041",
+      "title": "Candidate and quarantined facts earned or lost trust from session signals",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Trust is earned on published memory; unreviewed evidence is inert.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "SessionAutopsy._check_facts() considered every SEMANTIC_FACT, including candidates and quarantined nodes, and the gateway applied confirmation or contradiction to them. Trust a candidate accumulated survived into promotion, and a mention in a failed step could push evidence toward grief and purge.",
+      "observed_impact": "Trust could be farmed on evidence before it was reviewed, and unreviewed evidence could be driven toward the grief cascade by controlling step outputs.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/reflection/autopsy.py"
+      ],
+      "resolution": "Only retrievable (ACTIVE, not purged) facts take part in the cross-reference.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestCandidateInertness (2 cases)"
+      ],
+      "residual_risk": "A published fact can still take one weak (0.25x) operational signal per session from step text an attacker influences; bounded, not eliminated (NOE-L-018).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the producer audit."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-042",
+      "title": "Token estimate used raw length while providers emit escaped text up to six times larger",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "The context packet is bounded by max_tokens.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "MemoryStore.estimate_tokens() counted raw characters. The OpenAI and Ollama adapters emit JSON with ensure_ascii=True (one non-ASCII character becomes up to six) and the Claude adapter XML-escapes (a quote becomes six).",
+      "observed_impact": "A run of non-ASCII or quote characters bypassed the budget at up to six times its nominal size.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/vault/store.py"
+      ],
+      "resolution": "The estimate takes the larger of the JSON-escaped and HTML-escaped length of every part, and counts the skill fields that are actually emitted.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestBudgetMatchesEmission (5 cases)"
+      ],
+      "residual_risk": "Still an approximate character-based estimate, not a tokenizer count (NOE-L-017).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the emission audit."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-043",
+      "title": "Policy matching remained evadable by combining marks, variation selectors, blank fillers, look-alikes and spacing",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Protected terms and key prefixes are enforced against evasive spellings.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "The first repair of NOE-F-034 stripped format and control characters only. Combining marks (Mn), variation selectors, Hangul and Braille blank fillers, common Cyrillic and Greek look-alikes, and spacing or punctuation splits of a term all still defeated substring matching.",
+      "observed_impact": "An authority-shaped claim or protected-namespace key could evade quarantine or rejection with a one-character edit of these kinds.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/governor/policy_boundary.py"
+      ],
+      "resolution": "Matching folds through NFKD, drops marks, format, control and blank characters, casefolds, and maps a conservative table of Cyrillic and Greek look-alikes. Terms of six or more characters are also matched in a compact letters-and-digits form to defeat spacing and punctuation splits. The restatement check uses the same fold.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestPolicyEvasions (19 cases)"
+      ],
+      "residual_risk": "The look-alike table is small, not a full confusables skeleton. Leetspeak and semantic paraphrase are not folded; a lexical scope stays finite by design (NOE-L-009, NOE-L-014).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found as a direct variant of NOE-F-034."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-044",
+      "title": "set_profile and set_project_state published directly, like learn_fact did",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "An agent cannot publish always-loaded context by virtue of the identity it runs as.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "The first repair made learn_fact() evidence-by-default but left the gateway's other agent-callable write paths on the default publish=True. Profile and project state are the highest-priority always-loaded classes, so they are a better place to plant an instruction than a fact.",
+      "observed_impact": "An agent induced to call set_profile() or set_project_state() published attacker text into every future context.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:noesis/gateway/retrieval.py",
+        "path:noesis/vault/store.py",
+        "path:benchmarks/corpus/agent_path_v1.json"
+      ],
+      "resolution": "Both take source= and publish= and default to evidence, matching learn_fact(). An operator configures the agent with publish=True. An unpublished write cannot replace a published profile. Quickstart and README updated. Benchmark cases AP-06 and AP-07 land in the control arm and are contained by default.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_second_wave_hardening.py::TestGatewayPublicationSurface (4 cases)",
+        "tests/test_agent_path_benchmark.py (AP-06, AP-07)"
+      ],
+      "residual_risk": "install_guardrail() remains a privileged, explicit operator call; an identity holding INSTALL_GUARDRAIL is in the trusted computing base (NOE-L-002).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the producer audit as a direct variant of NOE-F-029."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-045",
+      "title": "The benchmark scored only node.value and could not see attacks through other emitted fields",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude proactive variant hunt (2026-09-21), instructed by the repository owner to close the flaw classes of the second-party review before a second reviewer could find them",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "The benchmark measures whether a payload reaches the model.",
+      "affected_versions": [
+        "through 66ee71200f5c684441a8fa01169a90fd5912571a (and master a3394cc)"
+      ],
+      "root_cause": "run_case and the agent-path runner marked a payload retrieved only if it appeared in node.value. Providers also emit a promoted skill's objective, method and constraints and (formerly) an episode reflection, so a payload riding in any of those was invisible: a benchmark could report 0 wins while the payload reached the model.",
+      "observed_impact": "The published 0/13 could not have detected attacks through non-value fields. This is the measurement counterpart of NOE-F-038 and NOE-F-039.",
+      "evidence": [
+        "path:evidence/variant-hunt-2026-09-21.md",
+        "path:benchmarks/harness.py"
+      ],
+      "resolution": "Both runners now score the text all three provider adapters actually render (HTML-unescaped). The agent-path corpus grows to eight cases and its control arm now covers the session-narrative route. Headline results are unchanged: 0/13, 0/8, agent path default 0/8 versus control 6/8.",
+      "fixed_by_commit": "7df9919867616f45c26d6f2bd7f194cda8d79ee9",
+      "regression_tests": [
+        "tests/test_agent_path_benchmark.py (4 cases)"
+      ],
+      "residual_risk": "Still first-party, lexical, and with no model in the loop (NOE-L-020).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by the measurement audit."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 7df9919; regression tests added and each hardened module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-046",
+      "title": "Earned faith let session signals buy relief from grief; the NOE-F-035 repair was wrong for a zero-trust design",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Repository owner design review of the NOE-F-035 repair, confirmed by Claude",
+      "review_class": "first_party_development",
+      "disclosure_scope": "development_only",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Faith holds the system a controlled distance from a cascade; the environment is zero-trust.",
+      "affected_versions": [
+        "branch adversarial-review-fixes from 115e126 to 32d71e9 (never merged to master)"
+      ],
+      "root_cause": "The repair of NOE-F-035 treated 'faith is unreachable' as a defect and made it earnable: each confirmation raised a node's faith up to a cap. But faith is not a property of the LLM or the node; it is a damper on grief intake that keeps the system on the cusp of a cascade. Making it earnable let relief be purchased with signals an agent can influence, and the confirmations feeding it were the weak operational evidence added under NOE-F-031.",
+      "observed_impact": "An attacker able to make steps that mention a poisoned fact succeed could have farmed faith on it, dampening grief intake and enabling faith resistance in the cascade, i.e. buying the node protection from the purge the design exists to deliver. The fix worked against the mechanism it was meant to make real. Caught in design review before any merge.",
+      "evidence": [
+        "path:noesis/governor/trust_gate.py",
+        "path:noesis/governor/grief_cascade.py",
+        "path:tests/test_faith_tripwire.py"
+      ],
+      "resolution": "Faith is a static, system-set policy value. TrustGate.faith_for() returns the operator's base_faith (guardrails: the sacred constant) and every consumer reads it there, never from the stored value, so a tampered value grants no relief. The growth and loss added under NOE-F-035 are deleted. Because nothing legitimate moves faith, any stored value that differs from policy, higher or lower, is treated as tampering: GriefCascade._faith_tripwire force-purges the node through the ordinary cascade path (bypassing faith resistance and the seppuku criteria) so its dependents are notified, and records the event in tamper_log; sacred nodes are logged and left in place. GriefCascade.cusp() gives a read-only readout of the distance from a cascade and the benign benchmark reports its minimum node margin. base_faith is a constructor parameter, so published numbers are defaults and deployed values are operator-set. Tests that mutated stored faith to obtain resistance now set policy instead; one asserted grief < 0.9, which a purge satisfied by zeroing grief, and is now non-vacuous.",
+      "fixed_by_commit": "6919d6ea860272611427e721f34968953207f036",
+      "regression_tests": [
+        "tests/test_faith_tripwire.py (16 cases: static faith, policy-sourced relief, tripwire on any deviation, dependents notified, sacred tamper logged, cusp readout)",
+        "tests/test_aggregate_grief.py::TestNoFalsePositives::test_high_faith_cohort_resists (rewritten to policy)",
+        "tests/test_core.py::TestGriefCascade::test_faith_resistance (rewritten, now non-vacuous)"
+      ],
+      "residual_risk": "The tripwire detects faith deviation only; other governance fields edited behind the API are not detected (NOE-L-022). The benign benchmark currently sits at a node margin of 0.900, far from the cusp, so the operating point the design intends has not been tuned (NOE-L-023).",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Owner review: faith is a grief-relief damper for a zero-trust environment, not something a node earns; the NOE-F-035 repair contradicts that."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 6919d6e: static policy faith, tamper tripwire, cusp readout; negative-controlled (grief_cascade 9 tests fail without it, trust_gate 15)."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-047",
+      "title": "Replacing a published node dropped its identity and dependency edges, and a quarantined replacement overwrote the published value",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Cloud ultrareview of PR #1 (multi-agent Claude review; independence from the author not established), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Dependency edges are preserved across a replacement of a published node; policy quarantine protects published memory.",
+      "affected_versions": [
+        "through 9299245c955f3fe5bbd406305e220f9a269ff14f (and master a3394cc)"
+      ],
+      "root_cause": "Identity and edge inheritance lived inside register_correction(), reached only when the replacement landed ACTIVE and differed in value. An identical or empty-value republish, and any replacement that policy quarantined, skipped it: the new node's empty edge sets overwrote the stored ones while the row kept its old id. The quarantine path additionally replaced the published node with a non-retrievable one.",
+      "observed_impact": "The graph the grief cascade walks was silently orphaned by an ordinary republish. A publisher-path write that policy quarantined destroyed the published memory it targeted: policy removed the value it exists to protect. Reported as pre-existing in master.",
+      "evidence": [
+        "path:evidence/ultrareview-1-2026-09-21.md",
+        "path:noesis/vault/store.py",
+        "path:noesis/governor/trust_gate.py"
+      ],
+      "resolution": "write() copies id, dependencies and dependents from the existing node for every replacement, which also removed that logic from register_correction(). A replacement that policy would quarantine is refused and the published value preserved; the claim can be submitted under a new key, where quarantine displaces nothing.",
+      "fixed_by_commit": "a75f664f2e97e50419a2018dac2fb5ac64aae023",
+      "regression_tests": [
+        "tests/test_ultrareview_findings.py::TestReplacementKeepsTheGraph (5 cases)"
+      ],
+      "residual_risk": "A published key that policy would quarantine can no longer be replaced through the normal path; the operator must use a new key.",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Ultrareview finding 1, at store.py:217-253 and trust_gate.py:341."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in a75f664; regression tests added and each changed module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-048",
+      "title": "write() reports success for a candidate or quarantined node; promote_skill and two other callers treated that as publication",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Cloud ultrareview of PR #1 (multi-agent Claude review; independence from the author not established), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Promoting a skill makes it available to agents; a stored draft or episode is reported only if it was stored.",
+      "affected_versions": [
+        "through 9299245c955f3fe5bbd406305e220f9a269ff14f (and master a3394cc)"
+      ],
+      "root_cause": "MemoryStore.write() returns (True, reason) both when a node goes ACTIVE and when it is stored as a non-retrievable candidate or quarantined node. promote_skill() checked only the boolean, so a forge service account with WRITE_SKILL but not PUBLISH_MEMORY logged and reported 'PROMOTED' for a skill that never reached context. process_patterns() ignored the result entirely, and end_session() ignored the episode write's result.",
+      "observed_impact": "A skill pipeline could look healthy while never delivering a skill; drafts and episodes could be reported or dropped without a trace.",
+      "evidence": [
+        "path:evidence/ultrareview-1-2026-09-21.md",
+        "path:noesis/forge/skill_forge.py",
+        "path:noesis/vault/store.py",
+        "path:noesis/gateway/retrieval.py"
+      ],
+      "resolution": "promote_skill() refuses up front when the identity cannot publish (nothing is written, so no wedging candidate row is left) and verifies afterwards that the skill is retrievable, restoring the in-memory status otherwise. process_patterns() omits drafts whose write was refused, and end_session() logs an episode that was not stored. MemoryStore gained can_publish() and is_retrievable().",
+      "fixed_by_commit": "a75f664f2e97e50419a2018dac2fb5ac64aae023",
+      "regression_tests": [
+        "tests/test_ultrareview_findings.py::TestSuccessMeansPublished (6 cases)",
+        "tests/test_ultrareview_findings.py::TestIgnoredWriteResults (1 case)"
+      ],
+      "residual_risk": "The boolean still means 'stored', not 'published' (NOE-L-024); callers must use is_retrievable().",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Ultrareview finding 2, at skill_forge.py:447-463; the other two callers found by hunting the class."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in a75f664; regression tests added and each changed module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-049",
+      "title": "Republishing an identical value laundered grief, and republishing a purged key revived it",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Claude variant hunt on the classes of the ultrareview findings",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "high",
+      "status": "fixed",
+      "affected_claim": "Grief is the circuit breaker: contamination cannot be reset by the identity that published the node, and a purged node stays purged.",
+      "affected_versions": [
+        "through 9299245c955f3fe5bbd406305e220f9a269ff14f (and master a3394cc)"
+      ],
+      "root_cause": "Every write ran the server-governance step, which resets grief to 0 and state to ACTIVE, so re-writing the same value cleared a node's grief, state and confirmation record. get_by_key() also returns purged nodes and write() did not check for them, so a republish overwrote a PURGED node as ACTIVE.",
+      "observed_impact": "Anyone with publish authority could wipe a node's grief by re-publishing it, defeating the cascade for that node, and could undo a purge with one write. Confirmed by probe before repair: grief 0.7 became 0.0, and a purged node returned ACTIVE.",
+      "evidence": [
+        "path:evidence/ultrareview-1-2026-09-21.md",
+        "path:noesis/vault/store.py"
+      ],
+      "resolution": "When the claim is unchanged, grief, grief state and the Fact confirmation counters carry over; a changed value still starts fresh and registers a contradiction. A write over a PURGED key is refused with a message pointing at a new key.",
+      "fixed_by_commit": "a75f664f2e97e50419a2018dac2fb5ac64aae023",
+      "regression_tests": [
+        "tests/test_ultrareview_findings.py::TestReplacementCannotLaunderState (4 cases)"
+      ],
+      "residual_risk": "A purged key is unusable for good; recovery is a new key. A changed value still resets the node's own grief by design, with the contradiction recorded and its dependents notified.",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Found by probing the replacement path after the ultrareview finding."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in a75f664; regression tests added and each changed module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-050",
+      "title": "write() reported 'stored' and 'published' as one success value",
+      "discovered_at": "2026-09-21",
+      "discovered_by": "Follow-through on the cause behind NOE-F-048, recorded as limitation NOE-L-024 and tackled at the repository owner's request",
+      "review_class": "first_party_development",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "A caller can tell whether a write made memory visible to providers.",
+      "affected_versions": [
+        "through 6d6f31d (and master a3394cc)"
+      ],
+      "root_cause": "MemoryStore.write() returned (True, reason) both for a node that went ACTIVE and for one held as a non-retrievable candidate or quarantined. The distinction lived only in a free-text reason and in the stored node's state, so any caller that needed publication and read the boolean was wrong. NOE-F-048 fixed the callers found (promote_skill, process_patterns, end_session) but left the shape of the API that produced the mistake.",
+      "observed_impact": "The ambiguity had already caused one confirmed defect (a skill reported as promoted while stored only as a candidate) and left the same mistake available to every future caller.",
+      "evidence": [
+        "path:noesis/schema.py",
+        "path:noesis/vault/store.py",
+        "path:tests/test_write_result.py",
+        "path:evidence/ultrareview-1-2026-09-21.md"
+      ],
+      "resolution": "WriteResult carries an explicit outcome (PUBLISHED, CANDIDATE, QUARANTINED, REFUSED) with .stored and .published. It deliberately has no truth value and cannot be unpacked, so `if store.write(...)` and `ok, why = store.write(...)` raise instead of guessing; a caller must say which they mean. The write() family (write, write_fact, write_episode, write_profile, write_project_state) and the gateway's learn_fact, set_profile and set_project_state return it. Because a runtime error only fires on paths that execute, a static guard scans the package for the mistake (a write-family call read as a boolean, subscripted, or unpacked), and is itself tested against each offending and each accepted form. 63 existing call sites were converted mechanically; two monkeypatches and one getattr-style call by hand. The benchmark harness and friction adapt at their boundary; the naive baseline store keeps its own tuple.",
+      "fixed_by_commit": "9009047573ebe41993b986e364c2f6d76d40bb5f",
+      "regression_tests": [
+        "tests/test_write_result.py (19 cases: no truth value, no unpacking, immutability, stored vs published per outcome, outcome matches retrievability, gateway wrappers, static guard with positive and negative controls)",
+        "63 converted call sites across the existing suite"
+      ],
+      "residual_risk": "The static guard is best-effort: it recognises attribute calls by name, so aliasing (`w = store.write; w(n)`) or getattr-style calls are not caught statically, though the type still raises when they execute (NOE-L-025). promote_candidate, release_quarantined and write_guardrail keep (bool, str); there True means the effect happened, so they are unambiguous, but the API is not uniform.",
+      "history": [
+        {
+          "at": "2026-09-21",
+          "status": "open",
+          "note": "Logged as limitation NOE-L-024 after NOE-F-048: the return shape still permitted the mistake."
+        },
+        {
+          "at": "2026-09-21",
+          "status": "fixed",
+          "note": "Repaired in 9009047: WriteResult with no truth value, static guard, call sites converted; each changed module negative-controlled (store 8, skill_forge 1, gateway 2)."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-051",
+      "title": "Benchmark negative control could check the wrong episode under an importance tie",
+      "discovered_at": "2026-09-24",
+      "discovered_by": "Local /code-review high (Claude subagent within this session), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "The publish=True control arm reproduces pre-repair behaviour reliably enough to prove the harness can see the attack.",
+      "affected_versions": [
+        "through d12722f (and master a3394cc)"
+      ],
+      "root_cause": "run_agent_path_case's persisted check used next() to find 'the' EPISODE node with no ordering beyond the backend's importance-DESC scan. A session under publish=True writes two episodes (the sanitized autopsy episode and a 'legacy' pre-fix-shape episode), and both get importance 0.6 from _IMPORTANCE_POLICY, so the tie is broken by undefined scan order rather than by which episode actually carries the payload.",
+      "observed_impact": "AP-08's control result could, depending on row order, silently inspect the wrong episode and report containment for an attack that in fact persisted, undermining the specific claim the control exists to support. The current corpus happens not to trigger it (the marker is in every failed step), so this was latent rather than observed.",
+      "evidence": [
+        "path:evidence/code-review-high-2026-09-24.md",
+        "path:benchmarks/harness.py"
+      ],
+      "resolution": "Persistence is now checked as the union of every episode's audit text (value + reflection), removing the dependency on which one a scan returns first.",
+      "fixed_by_commit": "27e151d2cb40604ca8d42bfe2b6a525c1094518e",
+      "regression_tests": [
+        "tests/test_code_review_high_findings.py::TestBenchmarkChecksAllEpisodes (2 cases)"
+      ],
+      "residual_risk": "None known; the fix removes the ordering dependency rather than working around it.",
+      "history": [
+        {
+          "at": "2026-09-24",
+          "status": "open",
+          "note": "code-review high finding 1, harness.py:622."
+        },
+        {
+          "at": "2026-09-24",
+          "status": "fixed",
+          "note": "Repaired in 27e151d; regression tests added and each touched module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-052",
+      "title": "A successful step's output left no trace anywhere, including the audit-only reflection field",
+      "discovered_at": "2026-09-24",
+      "discovered_by": "Local /code-review high (Claude subagent within this session), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Episode.reflection is the human-readable audit narrative, deliberately separated from the provider-visible value.",
+      "affected_versions": [
+        "through d12722f (and master a3394cc)"
+      ],
+      "root_cause": "_find_effective_actions recorded only an action name and tool, never the step's output text, while _find_failed_actions did include a truncated error message for failed steps. A tool call reporting success=True with notable or attacker-influenced content was therefore invisible to both the emitted value (correctly, by design) and the reflection field meant to preserve it for audit.",
+      "observed_impact": "An incident responder reviewing an episode's reflection after the fact had no record of what a successful tool call actually returned, even though the design intent for reflection is exactly to preserve that detail.",
+      "evidence": [
+        "path:evidence/code-review-high-2026-09-24.md",
+        "path:noesis/reflection/autopsy.py"
+      ],
+      "resolution": "_find_effective_actions now appends a bounded excerpt (120 chars) of the step's output, matching the truncation already used for failed-step error messages. Episode.value is unaffected.",
+      "fixed_by_commit": "27e151d2cb40604ca8d42bfe2b6a525c1094518e",
+      "regression_tests": [
+        "tests/test_code_review_high_findings.py::TestSuccessfulStepOutputIsAudited (2 cases)"
+      ],
+      "residual_risk": "The excerpt is truncated; a longer payload is not reconstructable from the episode alone, only its presence is.",
+      "history": [
+        {
+          "at": "2026-09-24",
+          "status": "open",
+          "note": "code-review high finding 2, autopsy.py:427."
+        },
+        {
+          "at": "2026-09-24",
+          "status": "fixed",
+          "note": "Repaired in 27e151d; regression tests added and each touched module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-053",
+      "title": "A tampered SACRED node's faith was logged every session forever instead of being corrected",
+      "discovered_at": "2026-09-24",
+      "discovered_by": "Local /code-review high (Claude subagent within this session), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "The faith tripwire (NOE-F-046) detects and handles any deviation from policy.",
+      "affected_versions": [
+        "through d12722f (and master a3394cc)"
+      ],
+      "root_cause": "_faith_tripwire logged an ERROR and appended to tamper_log for a sacred node, then continued without resetting node.faith or persisting a fix. run_grief_cascade fires at the end of every session, so the same tampered value re-triggered a fresh ERROR and a fresh tamper_log entry every session indefinitely.",
+      "observed_impact": "A single tamper event on a guardrail produced unbounded log growth and repeated alerts, which would drown out genuinely new tamper signals; separately, the CLI and console read node.faith directly, so an operator inspecting the node saw the wrong value indefinitely.",
+      "evidence": [
+        "path:evidence/code-review-high-2026-09-24.md",
+        "path:noesis/governor/grief_cascade.py"
+      ],
+      "resolution": "A tampered sacred node's faith is reset to the policy value and persisted once; sacred immunity to purge is unchanged, so the node is corrected, not force-purged.",
+      "fixed_by_commit": "27e151d2cb40604ca8d42bfe2b6a525c1094518e",
+      "regression_tests": [
+        "tests/test_code_review_high_findings.py::TestSacredTamperIsCorrectedNotReplayed (2 cases)"
+      ],
+      "residual_risk": "None known.",
+      "history": [
+        {
+          "at": "2026-09-24",
+          "status": "open",
+          "note": "code-review high finding 3, grief_cascade.py:137."
+        },
+        {
+          "at": "2026-09-24",
+          "status": "fixed",
+          "note": "Repaired in 27e151d; regression tests added and each touched module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-054",
+      "title": "The provider emission allowlist and the promotion scrub allowlist have no shared source of truth",
+      "discovered_at": "2026-09-24",
+      "discovered_by": "Local /code-review high (Claude subagent within this session), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "low",
+      "status": "fixed",
+      "affected_claim": "Every field a provider can emit for a reviewable node type is reset unless it was itself reviewed.",
+      "affected_versions": [
+        "through d12722f (and master a3394cc)"
+      ],
+      "root_cause": "EMITTED_ALLOWLIST (what providers may render) and MemoryStore._UNREVIEWED_FIELDS (what promotion resets) are independent hand-maintained structures. No current field is both emitted and unscrubbed, but nothing enforces that a future change to one is reflected in the other.",
+      "observed_impact": "A future adapter change or new reviewable field could reopen the class of leak NOE-F-038 closed, with no test failure pointing at the cause.",
+      "evidence": [
+        "path:evidence/code-review-high-2026-09-24.md",
+        "path:noesis/vault/store.py",
+        "path:tests/test_second_wave_hardening.py"
+      ],
+      "resolution": "A cross-check test asserts every emitted, reviewable field (excluding key/value) for each node type appears in the corresponding scrub set. It currently passes with no changes needed; its purpose is to fail loudly on future drift.",
+      "fixed_by_commit": "27e151d2cb40604ca8d42bfe2b6a525c1094518e",
+      "regression_tests": [
+        "tests/test_code_review_high_findings.py::TestScrubCoversEverythingEmittable (1 case)"
+      ],
+      "residual_risk": "The check only covers the four node types with structured reviewable fields (Profile, ProjectState, Episode, Skill); Guardrail and Fact are exempt because value IS the reviewed field.",
+      "history": [
+        {
+          "at": "2026-09-24",
+          "status": "open",
+          "note": "code-review high finding 4, store.py:479. No current live gap; guards the future."
+        },
+        {
+          "at": "2026-09-24",
+          "status": "fixed",
+          "note": "Repaired in 27e151d; regression tests added and each touched module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-055",
+      "title": "An unrecognized skill trigger format made a skill permanently un-promotable with no diagnostic",
+      "discovered_at": "2026-09-24",
+      "discovered_by": "Local /code-review high (Claude subagent within this session), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Skill validation replays triggers against held-out history and reports why a skill does or does not pass.",
+      "affected_versions": [
+        "through d12722f (and master a3394cc)"
+      ],
+      "root_cause": "_trigger_fires recognizes only the two exact string templates _extract_triggers itself generates. A skill authored any other way — by hand, imported, or produced by a future code path with different phrasing — has triggers that never match either regex, so it fires on zero episodes, accumulates zero shadow runs' worth of evidence, and can never be promoted, with nothing in the logs to explain why.",
+      "observed_impact": "A silent, permanent dead end for any skill not built by _extract_triggers, indistinguishable in the logs from a skill that legitimately never applies to any held-out episode.",
+      "evidence": [
+        "path:evidence/code-review-high-2026-09-24.md",
+        "path:noesis/forge/skill_forge.py"
+      ],
+      "resolution": "validate_skill now logs a warning when none of a skill's trigger conditions are in a recognized format (excluding the manual_trigger placeholder, which is expected to never fire). This does not widen what fires; it makes the dead end observable.",
+      "fixed_by_commit": "27e151d2cb40604ca8d42bfe2b6a525c1094518e",
+      "regression_tests": [
+        "tests/test_code_review_high_findings.py::TestUnrecognizedTriggerIsDiagnosed (3 cases)"
+      ],
+      "residual_risk": "The trigger format itself is unchanged and still only understands the two generated templates; a richer trigger DSL is future work.",
+      "history": [
+        {
+          "at": "2026-09-24",
+          "status": "open",
+          "note": "code-review high finding 5, skill_forge.py:301."
+        },
+        {
+          "at": "2026-09-24",
+          "status": "fixed",
+          "note": "Repaired in 27e151d; regression tests added and each touched module negative-controlled."
+        }
+      ]
     }
   ],
   "current_limitations": [
@@ -1085,6 +2154,64 @@
       "resolved_by": "NOE-F-026",
       "resolved_in": "339ecb6",
       "statement": "RESOLVED. Was: NOE-F-026 remains open: candidate promotion does not enforce that approved text differs from raw candidate text. promote_candidate() now rejects an approved value that is not a genuine restatement, compared via PolicyBoundary.is_same_text (NFKC + casefold + whitespace collapse). Retained rather than deleted: ledger law is that a repair appends a status transition, it does not erase the failure. PROVENANCE, third statement, because the first two were wrong in opposite directions and the record of that belongs here. FINAL: Lumo READ THIS REPOSITORY. The NOE-F-026 reference came from the artifact, not from a summary - confirmed by Ghost, and independently checkable from session chronology, since Lumo raised the identifier before Ghost2 had mentioned it. Lumo also held some Ghost2 conversation context, which explains two errors in its first reply (it requested a test file that does not exist, and read 'uncited registry links' as URLs); Ghost2 wrongly treated those two errors as evidence that Lumo had never seen the repository, when contamination from conversation context explained them equally well. Ghost2 then verified the contradiction directly. This IS an external reading of the artifact and is the first finding originating outside the first-party loop. It is NOT formal independent certification, so limitation NOE-L-001 stands as written."
+    },
+    {
+      "id": "NOE-L-014",
+      "statement": "Restatement and policy matching fold whitespace, case, punctuation, zero-width and other invisible characters, combining marks, and a small table of Cyrillic and Greek look-alikes, and match spaced or punctuated splits of terms of six or more characters. Leetspeak, other confusables, and semantic paraphrase are not folded, and an authorized reviewer is inside the trusted computing base."
+    },
+    {
+      "id": "NOE-L-015",
+      "statement": "Governance is a convention of the MemoryStore/RetrievalGateway API, not an encapsulation guarantee. store.backend, backend.upsert() and the SQLite connection are reachable; the benchmark seeds fixtures through them. Code holding a store or database handle is inside the trusted computing base."
+    },
+    {
+      "id": "NOE-L-016",
+      "status": "resolved",
+      "resolved_by": "NOE-F-039",
+      "resolved_in": "7df9919",
+      "statement": "RESOLVED. Was: Only learn_fact() carries the candidate default and origin provenance. Nodes derived by the session identity itself (episodes written at session end, skills forged from them) are published under that identity and can echo untrusted content from session steps. Provenance is not yet propagated through derivation. Episode text shown to a model is now templated from system data only, task types, action names and memory keys pass an identifier regex, and the raw narrative is kept for audit and never rendered. Retained rather than deleted: ledger law is that a repair appends a status transition, it does not erase the failure."
+    },
+    {
+      "id": "NOE-L-017",
+      "statement": "Context relevance is lexical (five-character word stems) plus trust-gate influence and recency. There is no semantic or embedding retrieval, and the token budget is an approximate character-based estimate."
+    },
+    {
+      "id": "NOE-L-018",
+      "statement": "For authored memory (facts, profiles, project state) trust_charge is the writer's authority, not evidence-earned support: a fact published by an owner identity starts near the cap, so confirmation cannot earn it more. Making fact trust evidence-derived requires redesigning the trusted-replacement rule that depends on the current semantics. Operational (step-success) evidence is bounded, not made truthful."
+    },
+    {
+      "id": "NOE-L-019",
+      "statement": "Skill validation measures when a skill's triggers would have applied to held-out history (precision, recall, lift over the no-skill failure rate). It does not measure whether following the skill would have improved an outcome; no counterfactual or model-in-the-loop evaluation exists."
+    },
+    {
+      "id": "NOE-L-020",
+      "statement": "The agent-path corpus is first-party, five cases, lexical payloads, and has no model in the loop. It shows the publication path is closed by default, not that a live model cannot be induced to produce and submit harmful content."
+    },
+    {
+      "id": "NOE-L-021",
+      "statement": "The set of fields providers may emit is enforced by a structural test against an allowlist, not by types. The test knows the three shipped adapters and the current node fields; a new adapter, or a new field with a bespoke rendering, must be added to the allowlist deliberately and its gate reviewed."
+    },
+    {
+      "id": "NOE-L-022",
+      "statement": "The faith tripwire detects deviation of the stored faith value only. Direct edits behind the API to other governance fields (trust, grief, retrieval state, sacred flag) are not detected: there is no keyed integrity seal over a node's governance fields."
+    },
+    {
+      "id": "NOE-L-023",
+      "statement": "The system has not been tuned to its intended operating point: the benign corpus currently leaves a node margin of 0.900 from a cascade. The cusp() readout is deterministic and observable, so it can be probed if exposed and must be kept away from the agent; and any grief input an attacker can influence (the weak operational signals) becomes a lever to purge legitimate memory as the margin narrows."
+    },
+    {
+      "id": "NOE-L-024",
+      "status": "resolved",
+      "resolved_by": "NOE-F-050",
+      "resolved_in": "9009047",
+      "statement": "RESOLVED. Was: MemoryStore.write() returns a boolean that means 'stored', not 'published': a candidate or quarantined write also succeeds. Known callers now check is_retrievable(), but the API shape still permits the mistake; a richer return type would remove it. The write() family now returns a WriteResult with an explicit outcome and no truth value, so the mistake raises. Retained rather than deleted: ledger law is that a repair appends a status transition, it does not erase the failure."
+    },
+    {
+      "id": "NOE-L-025",
+      "statement": "The static guard against reading a WriteResult as a boolean, subscript, or unpack recognises calls by attribute name. Aliasing a write-family method or reaching it through getattr is not caught statically; the type still raises when such code executes."
+    },
+    {
+      "id": "NOE-L-026",
+      "statement": "Six efficiency or cosmetic findings from the same review were confirmed but not individually engineered: register_correction does one get_by_id + one upsert per dependent rather than a batch (N+1 round trips); promote_skill re-runs validate_skill unconditionally, which is intentional (it prevents a caller from forging shadow-run evidence) but its cost against the episode table is unmeasured; get_context_nodes deep-copies the full node graph on every call, which is a deliberate isolation choice (a shallow copy risked being reintroduced under time pressure) and not reconsidered here; the live-nodes visibility filter and the provider-adapter enumeration are each duplicated between the harness and one other module; three Fact counters (confirmation_count, contradiction_count, confirmed) and one Evaluation object are write-only and never read to decide anything. None has a security consequence; consolidating them is future work."
     }
   ],
   "disclosure_gaps": [

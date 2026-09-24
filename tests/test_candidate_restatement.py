@@ -76,7 +76,8 @@ def stores(tmp_path):
 
 
 def _candidate(collector, value: str = RAW):
-    accepted, _ = collector.write(Fact(key="intake.build", value=value))
+    _r = collector.write(Fact(key="intake.build", value=value))
+    accepted, _ = _r.stored, _r.reason
     assert accepted is True
     node = collector.get("intake.build")
     assert node.retrieval_state == RetrievalState.CANDIDATE

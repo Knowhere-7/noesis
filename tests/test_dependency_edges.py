@@ -91,7 +91,8 @@ def unprivileged(tmp_path):
 
 
 def _fact(store, key, value="v"):
-    ok, reason = store.write(Fact(key=key, value=value))
+    _r = store.write(Fact(key=key, value=value))
+    ok, reason = _r.stored, _r.reason
     assert ok, reason
     node = store.get(key)
     if node.retrieval_state != RetrievalState.ACTIVE:

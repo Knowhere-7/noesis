@@ -18,12 +18,14 @@ Constitutional Anchor (Ghost, 2026-04-25):
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from typing import Callable, TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from noesis.schema import (
     DriftScore,
+    Fact,
     GriefState,
     Guardrail,
     MemoryNode,
@@ -63,10 +65,28 @@ class TrustGate:
     GRIEF_NATURAL_DECAY = 0.005     # slow healing per access cycle
     GRIEF_CRISIS_THRESHOLD = 0.9    # triggers cascade evaluation
     GRIEF_STRESS_THRESHOLD = 0.3    # enters stressed state
+    CORRECTION_PROPAGATION = 0.6    # share of a contradiction dependents feel
 
     # Faith constant (from the 54K-tick perfect swarm)
     FAITH_DAMPER = 0.45             # faith reduces grief intake by up to 45%
     SACRED_FAITH = 0.92             # gravitational pull of system guardrails
+
+    # Faith is a STATIC, system-set damper on grief. It is not earned and it is
+    # not a property of the node: it exists to hold the system a controlled
+    # distance from a cascade, and relief that a node (or an agent acting on
+    # it) could buy would defeat a zero-trust design. Every ordinary node gets
+    # the operator's base_faith; guardrails get SACRED_FAITH. Nothing a session
+    # does moves it, so ANY stored value that differs is tampering, and the
+    # cascade treats it as contamination (see GriefCascade._faith_tripwire).
+    BASE_FAITH = 0.1
+
+    # Operational evidence (R3). A successful tool step that mentioned a fact is
+    # correlation, not truth: a wrong fact can sit in a step that succeeded, a
+    # right one in a step that failed for unrelated reasons. Such signals are
+    # weak, and cannot lift trust past a ceiling below the maximum-stakes bar
+    # (DriftScore.required_trust at action_risk=1.0 is 0.77).
+    OPERATIONAL_EVIDENCE_WEIGHT = 0.25
+    OPERATIONAL_TRUST_CEILING = 0.75
 
     # Energy cost (from Murmuration economy.js)
     BASE_WRITE_COST = 1.0           # normal write energy
@@ -76,7 +96,10 @@ class TrustGate:
     def __init__(
         self,
         output_evaluator: Optional[Callable[..., DriftScore]] = None,
+        base_faith: float = BASE_FAITH,
     ):
+        # Deployed value is operator-set; BASE_FAITH is only the default.
+        self.base_faith = base_faith
         self.session_energy = self.ENERGY_BUDGET_PER_SESSION
         self._contradiction_log: List[Dict] = []
         self.output_evaluator = output_evaluator
@@ -180,6 +203,20 @@ class TrustGate:
 
         return True, "Write permitted."
 
+    # ── Faith (static policy) ──────────────────────────────────────────
+
+    def faith_for(self, node: MemoryNode) -> float:
+        """The faith this node is entitled to. Policy, never the stored value.
+
+        Every consumer reads faith here, so a tampered stored value grants no
+        relief even before the tripwire catches it.
+        """
+        return self.SACRED_FAITH if node.is_sacred else self.base_faith
+
+    def faith_tampered(self, node: MemoryNode) -> bool:
+        """Does the stored faith differ from policy, in either direction?"""
+        return abs(node.faith - self.faith_for(node)) > 1e-9
+
     # ── Read Gate ──────────────────────────────────────────────────────
 
     def gate_read(self, node: MemoryNode) -> float:
@@ -203,7 +240,7 @@ class TrustGate:
 
         # Influence = trust * (1 - grief) * importance
         # Faith bonus: faithful nodes get a lift
-        faith_bonus = 1.0 + (node.faith * 0.3)
+        faith_bonus = 1.0 + (self.faith_for(node) * 0.3)
         influence = (
             node.trust_charge *
             (1.0 - node.grief * 0.6) *
@@ -214,19 +251,37 @@ class TrustGate:
 
     # ── Trust Updates ──────────────────────────────────────────────────
 
-    def confirm_node(self, node: MemoryNode):
-        """Node was confirmed correct — charge trust battery."""
-        node.trust_charge = min(
-            self.TRUST_CAP,
-            node.trust_charge + self.TRUST_CONFIRMATION_BOOST,
+    def confirm_node(
+        self,
+        node: MemoryNode,
+        *,
+        weight: float = 1.0,
+        trust_ceiling: Optional[float] = None,
+    ):
+        """Node was confirmed correct — charge trust battery.
+
+        `weight` scales the evidence (1.0 = strong, e.g. explicit validation;
+        OPERATIONAL_EVIDENCE_WEIGHT = inferred from a step succeeding).
+        `trust_ceiling` bounds what THIS evidence can earn: it never lowers
+        trust a node already holds.
+        """
+        target = node.trust_charge + self.TRUST_CONFIRMATION_BOOST * weight
+        if trust_ceiling is not None:
+            target = min(target, max(trust_ceiling, node.trust_charge))
+        node.trust_charge = min(self.TRUST_CAP, target)
+
+        # Successful confirmation heals grief (healing is not faith-dampened)
+        node.grief = max(
+            0.0, node.grief - self.GRIEF_NATURAL_DECAY * 3 * weight
         )
-        # Successful confirmation heals grief
-        faith_damper = 1.0  # healing is not dampened by faith
-        node.grief = max(0.0, node.grief - self.GRIEF_NATURAL_DECAY * 3)
+        if isinstance(node, Fact):
+            node.confirmation_count += 1
+            if weight >= 1.0:
+                node.confirmed = True
         self._update_grief_state(node)
         node.touch()
 
-    def contradict_node(self, node: MemoryNode):
+    def contradict_node(self, node: MemoryNode, *, weight: float = 1.0):
         """Node was contradicted — drain trust, accumulate grief."""
         if node.is_sacred:
             logger.info(
@@ -237,21 +292,84 @@ class TrustGate:
 
         node.trust_charge = max(
             self.TRUST_FLOOR,
-            node.trust_charge - self.TRUST_CONTRADICTION_DRAIN,
+            node.trust_charge - self.TRUST_CONTRADICTION_DRAIN * weight,
         )
 
         # Faith dampens grief intake (from Murmuration agent.js)
-        faith_damper = 1.0 - (node.faith * self.FAITH_DAMPER)
-        grief_delta = self.GRIEF_CONTRADICTION_HIT * faith_damper
+        faith_damper = 1.0 - (self.faith_for(node) * self.FAITH_DAMPER)
+        grief_delta = self.GRIEF_CONTRADICTION_HIT * faith_damper * weight
         node.grief = min(1.0, node.grief + grief_delta)
+
+        if isinstance(node, Fact):
+            node.contradiction_count += 1
+            node.confirmed = False
 
         self._update_grief_state(node)
         self._contradiction_log.append({
             "node_key": node.key,
             "trust_after": node.trust_charge,
             "grief_after": node.grief,
+            "weight": weight,
             "time": time.time(),
         })
+
+    def register_correction(
+        self,
+        new: MemoryNode,
+        existing: MemoryNode,
+        store: MemoryStore,
+    ) -> bool:
+        """Record that an authorized write replaced a published value (R3).
+
+        Until this existed the grief machinery only ever ran on manufactured
+        signals: an authorized correction replaced the node and left no trace,
+        so nothing that rested on the old value ever learned it had moved.
+
+        On a genuine contradiction this
+          - carries the contradiction history and marks what was superseded,
+          - propagates grief to dependents, whose validity rested on the old
+            value.
+        (Identity and dependency edges are kept by MemoryStore.write() for
+        every replacement, contradictory or not.)
+        Returns True if a contradiction was registered.
+        """
+        if not self._detect_contradiction(new, existing):
+            return False
+
+        if isinstance(new, Fact) and isinstance(existing, Fact):
+            new.contradiction_count = existing.contradiction_count + 1
+            new.confirmation_count = 0
+            new.confirmed = False
+        new.metadata["_noesis_supersedes"] = {
+            "id": existing.id,
+            "sha256": hashlib.sha256(
+                existing.value.encode("utf-8")
+            ).hexdigest(),
+            "at": time.time(),
+        }
+
+        for dependent_id in existing.dependents:
+            dependent = store.get_by_id(dependent_id)
+            if dependent is None or dependent.is_sacred:
+                continue
+            damper = 1.0 - (self.faith_for(dependent) * self.FAITH_DAMPER)
+            dependent.grief = min(
+                1.0,
+                dependent.grief
+                + self.GRIEF_CONTRADICTION_HIT
+                * self.CORRECTION_PROPAGATION
+                * damper,
+            )
+            self._update_grief_state(dependent)
+            store.backend.upsert(dependent)
+
+        self._contradiction_log.append({
+            "node_key": new.key,
+            "kind": "authorized_correction",
+            "dependents_notified": len(existing.dependents),
+            "time": time.time(),
+        })
+        return True
 
     # ── Drift Scoring ──────────────────────────────────────────────────
 
@@ -386,7 +504,7 @@ class TrustGate:
             existing.trust_charge - self.TRUST_CONTRADICTION_DRAIN * 0.5,
         )
         # Accumulate grief on existing
-        faith_damper = 1.0 - (existing.faith * self.FAITH_DAMPER)
+        faith_damper = 1.0 - (self.faith_for(existing) * self.FAITH_DAMPER)
         existing.grief = min(
             1.0,
             existing.grief + self.GRIEF_CONTRADICTION_HIT * 0.5 * faith_damper,

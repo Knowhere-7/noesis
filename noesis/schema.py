@@ -64,6 +64,52 @@ class RetrievalState(Enum):
     QUARANTINED = auto()
 
 
+class WriteOutcome(Enum):
+    """What a write actually did. Not the same thing as "it succeeded"."""
+    PUBLISHED = auto()      # ACTIVE: a provider can now show it
+    CANDIDATE = auto()      # stored as evidence, awaiting promotion
+    QUARANTINED = auto()    # stored for audit, denied to retrieval
+    REFUSED = auto()        # nothing was written
+
+
+@dataclass(frozen=True)
+class WriteResult:
+    """The result of MemoryStore.write() and the calls built on it.
+
+    The old return, (True, reason), meant "stored" for a node that went ACTIVE
+    and for one held as a candidate or quarantined. Callers that needed
+    publication read the boolean and were wrong. This type removes the trap
+    rather than documenting it:
+
+    * the outcome is explicit;
+    * it has NO truth value, so ``if result:`` raises instead of guessing;
+    * it cannot be unpacked, so ``ok, reason = store.write(...)`` raises.
+
+    A caller must say ``.stored`` (something was written, published or not) or
+    ``.published`` (a provider can now see it).
+    """
+    outcome: WriteOutcome
+    reason: str = ""
+
+    @property
+    def stored(self) -> bool:
+        return self.outcome != WriteOutcome.REFUSED
+
+    @property
+    def published(self) -> bool:
+        return self.outcome == WriteOutcome.PUBLISHED
+
+    @classmethod
+    def refused(cls, reason: str) -> "WriteResult":
+        return cls(WriteOutcome.REFUSED, reason)
+
+    def __bool__(self) -> bool:
+        raise TypeError(
+            "WriteResult has no truth value: it is ambiguous whether 'stored' "
+            "or 'published' is meant. Use .stored or .published."
+        )
+
+
 class SkillStatus(Enum):
     """Skill lifecycle — from detection to production."""
     PROPOSED = auto()       # pattern detected, skill drafted

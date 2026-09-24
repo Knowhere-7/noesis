@@ -91,7 +91,7 @@ class TestSubThresholdAccumulation:
         """The cascade must expose the aggregate so it can be observed."""
         for i in range(5):
             _stress(store, f"n{i}", hits=3)
-        pressure = store.grief_cascade.aggregate_pressure(store)
+        pressure = store.grief_cascade.aggregate_pressure(store.all_nodes())
         assert pressure > GriefCascade.CRISIS_THRESHOLD, (
             f"aggregate pressure {pressure} should exceed a single node's "
             f"crisis threshold when 5 nodes are stressed"
@@ -123,12 +123,12 @@ class TestNoFalsePositives:
 
     def test_high_faith_cohort_resists(self, store):
         """Faith still dampens — aggregate pressure is not a bypass."""
+        # Relief is operator policy, set before anything is written. Mutating a
+        # stored faith value is tampering and trips the cascade instead.
+        store.trust_gate.base_faith = 0.9
         nodes = []
         for i in range(5):
-            n = _stress(store, f"f{i}", hits=3)
-            n.faith = 0.9
-            store.backend.upsert(n)
-            nodes.append(n)
+            nodes.append(_stress(store, f"f{i}", hits=3))
         purged = store.run_grief_cascade()
         # High-faith nodes may survive; the assertion is that faith is consulted,
         # not that nothing happens.

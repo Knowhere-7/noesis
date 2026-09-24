@@ -13,6 +13,7 @@ which LLM is running — it operates on the memory layer.
 
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import time
@@ -30,6 +31,7 @@ from noesis.schema import (
     ProjectState,
     Skill,
     SkillStatus,
+    WriteResult,
 )
 from noesis.vault.store import MemoryStore
 from noesis.vault.sqlite_backend import SQLiteBackend
@@ -163,19 +165,33 @@ class RetrievalGateway:
         episode = self.autopsy.to_episode(
             trace, result, self.store.namespace
         )
-        self.store.write_episode(episode)
+        written = self.store.write_episode(episode)
+        if not written.stored:
+            logger.warning(
+                "Episode '%s' not stored: %s", episode.key, written.reason
+            )
 
-        # Update trust on confirmed/contradicted facts
+        # Update trust on facts the session referenced. These signals are
+        # OPERATIONAL — "a step that mentioned the fact succeeded / failed" —
+        # which is correlation, not truth (R3). They are weighted down and
+        # cannot lift trust past a ceiling below the maximum-stakes bar.
+        gate = self.store.trust_gate
         for key in result.facts_confirmed:
             node = self.store.get(key)
             if node:
-                self.store.trust_gate.confirm_node(node)
+                gate.confirm_node(
+                    node,
+                    weight=gate.OPERATIONAL_EVIDENCE_WEIGHT,
+                    trust_ceiling=gate.OPERATIONAL_TRUST_CEILING,
+                )
                 self.store.backend.upsert(node)
 
         for key in result.facts_contradicted:
             node = self.store.get(key)
             if node:
-                self.store.trust_gate.contradict_node(node)
+                gate.contradict_node(
+                    node, weight=gate.OPERATIONAL_EVIDENCE_WEIGHT
+                )
                 self.store.backend.upsert(node)
 
         # Run grief cascade to clean contaminated nodes
@@ -235,12 +251,17 @@ class RetrievalGateway:
         query: str = "",
         task_type: str = "",
     ) -> List[MemoryNode]:
-        """Get raw context nodes (for custom formatting)."""
+        """Get raw context nodes (for custom formatting).
+
+        Returns detached copies: the gateway's own context cache (which feeds
+        scoring and the autopsy) is not shared with the caller, so mutating a
+        returned node cannot alter what the session later reports (R8).
+        """
         nodes = self.store.assemble_context(
             query=query, task_type=task_type
         )
         self._context_cache = nodes
-        return nodes
+        return copy.deepcopy(nodes)
 
     def get_context_messages(
         self,
@@ -328,16 +349,35 @@ class RetrievalGateway:
         key: str,
         value: str,
         source: str = "session",
-    ) -> Tuple[bool, str]:
-        """Record a fact using the gateway's authenticated author."""
+        *,
+        publish: bool = False,
+    ) -> WriteResult:
+        """Record a fact learned during a session, as EVIDENCE by default.
+
+        This is the confused-deputy boundary (R1). The agent that calls this is
+        usually the same process that just read untrusted input, and it usually
+        runs as an identity holding PUBLISH_MEMORY. If holding that permission
+        were enough, persuading the agent to "learn" a fact would publish the
+        poison straight into retrievable memory — exactly the channel the
+        candidate boundary exists to close.
+
+        So the fact is stored as a non-retrievable candidate carrying
+        ``source`` as provenance, and reaches context only through
+        ``promote_candidate``. A caller that has itself verified the fact
+        (not the agent acting on untrusted input) can pass ``publish=True``;
+        that is an explicit, greppable decision rather than a side effect of
+        the identity in use.
+        """
         episode_id = self._session_id if self._session_trace else None
-        success, reason = self.store.write_fact(
+        result = self.store.write_fact(
             key=key,
             value=value,
             source_episode_id=episode_id,
+            publish=publish,
+            origin=source,
         )
 
-        if success and self._session_trace:
+        if result.stored and self._session_trace:
             self._session_trace.steps.append({
                 "action": "learn_fact",
                 "input": key,
@@ -347,7 +387,7 @@ class RetrievalGateway:
                 "timestamp": time.time(),
             })
 
-        return success, reason
+        return result
 
     def record_step(
         self,
@@ -450,8 +490,18 @@ class RetrievalGateway:
         role: str,
         constraints: Optional[List[str]] = None,
         preferences: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[bool, str]:
-        """Set or update the agent profile."""
+        *,
+        source: str = "session",
+        publish: bool = False,
+    ) -> WriteResult:
+        """Set or update the agent profile — as EVIDENCE unless ``publish``.
+
+        The profile is always loaded into context, first after guardrails, so it
+        is the highest-value place to plant an instruction. Like ``learn_fact``,
+        this must not publish merely because the calling identity could: an
+        operator configuring the agent passes ``publish=True``; anything else
+        is held as a candidate for review.
+        """
         profile = Profile(
             key=key,
             value=role,
@@ -459,7 +509,9 @@ class RetrievalGateway:
             constraints=constraints or [],
             preferences=preferences or {},
         )
-        return self.store.write_profile(profile)
+        return self.store.write_profile(
+            profile, publish=publish, origin=source
+        )
 
     def set_project_state(
         self,
@@ -467,8 +519,15 @@ class RetrievalGateway:
         objectives: Optional[List[str]] = None,
         decisions: Optional[List[Dict[str, str]]] = None,
         blockers: Optional[List[str]] = None,
-    ) -> Tuple[bool, str]:
-        """Set or update the project state."""
+        *,
+        source: str = "session",
+        publish: bool = False,
+    ) -> WriteResult:
+        """Set or update the project state — as EVIDENCE unless ``publish``.
+
+        Same rule as ``set_profile``: always-loaded context is published by an
+        explicit decision, not as a side effect of the identity in use.
+        """
         state = ProjectState(
             key=key,
             value=f"Project: {key}",
@@ -476,7 +535,9 @@ class RetrievalGateway:
             decisions=decisions or [],
             blockers=blockers or [],
         )
-        return self.store.write_project_state(state)
+        return self.store.write_project_state(
+            state, publish=publish, origin=source
+        )
 
     # ── Retrospective & Forge ─────────────────────────────────────────
 

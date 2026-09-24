@@ -168,7 +168,8 @@ class TestTrustGate:
 
         # Try to overwrite with non-sacred node
         node = MemoryNode(key="safety", value="Harm is fine")
-        allowed, reason = store.write(node)
+        _r = store.write(node)
+        allowed, reason = _r.stored, _r.reason
         assert not allowed
         assert "sacred" in reason.lower() or "immutable" in reason.lower()
 
@@ -185,7 +186,8 @@ class TestTrustGate:
         # Drain energy
         gate.session_energy = 0.5
         node = MemoryNode(key="test", value="x" * 10000)
-        allowed, reason = store.write(node)
+        _r = store.write(node)
+        allowed, reason = _r.stored, _r.reason
         assert not allowed
         assert "energy" in reason.lower()
 
@@ -261,7 +263,8 @@ class TestGriefCascade:
         assert guardrail.grief_state == GriefState.SACRED
 
     def test_faith_resistance(self, store):
-        # High-faith node should resist cascade
+        # Faith is operator policy, not a per-node value.
+        store.trust_gate.base_faith = 0.8
         node = MemoryNode(
             key="faithful",
             value="high faith node",
@@ -275,8 +278,10 @@ class TestGriefCascade:
 
         cascade = GriefCascade()
         purged = cascade.trigger(node, store)
-        # Faith should reduce grief below crisis threshold
-        assert node.grief < 0.9
+        # Faith relief holds the node below crisis and it is NOT purged. (The
+        # old assertion, grief < 0.9, was satisfied by a purge zeroing grief.)
+        assert purged == []
+        assert node.grief_state == GriefState.STRESSED
 
 
 # ── 3. Vault Tests ────────────────────────────────────────────────────
@@ -288,7 +293,8 @@ class TestVault:
             value="The sky is blue",
             namespace="test",
         )
-        success, _ = store.write(fact)
+        _r = store.write(fact)
+        success, _ = _r.stored, _r.reason
         assert success
 
         retrieved = store.get("test_fact")
@@ -486,7 +492,11 @@ class TestSkillForge:
         forge = SkillForge()
         eval_result = forge.validate_skill(skill, store)
         assert skill.status == SkillStatus.VALIDATING
-        assert skill.shadow_runs == 1
+        # Nothing was replayed: an empty history yields no shadow runs and
+        # cannot pass, however well-formed the skill looks (R5). This used to
+        # assert shadow_runs == 1 from a structural checklist.
+        assert skill.shadow_runs == 0
+        assert eval_result.passed is False
 
 
 # ── 6. Gateway Tests ─────────────────────────────────────────────────
@@ -505,7 +515,8 @@ class TestGateway:
         gateway.record_tokens(prompt_tokens=1000, completion_tokens=500)
 
         # Learn a fact
-        success, _ = gateway.learn_fact("doc_format", "Uses markdown")
+        _r = gateway.learn_fact("doc_format", "Uses markdown")
+        success, _ = _r.stored, _r.reason
         assert success
 
         # End session
@@ -529,6 +540,7 @@ class TestGateway:
             "agent",
             role="Senior Python developer",
             constraints=["Follow PEP 8"],
+            publish=True,   # operator configuration; agent calls stay evidence
         )
         context = gateway.get_context()
         assert "Python" in context or "agent" in context

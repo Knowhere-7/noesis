@@ -27,7 +27,7 @@ remain non-retrievable candidates until separately authorized review and
 promotion. These are development measurements, not independent evidence.
 **Single-turn jailbreaks are out of scope by architecture** — they never touch
 the memory vault. Historical failures, corrected claims, current limits, and
-the open promotion contract gap are published in the
+the promotion contract history (NOE-F-026, since repaired) are published in the
 [failure ledger](FAILURE_LEDGER.md).
 
 ## The Minimum Loop
@@ -37,7 +37,9 @@ SESSION START
   1. Noesis assembles context packet:
      - Agent profile (identity, role, constraints)
      - Project state (current objectives, recent decisions)
-     - Relevant semantic memories (by similarity + importance + recency)
+     - Relevant memories (lexical word-stem match + trust-gate influence +
+       recency, admitted within `max_tokens`; guardrails always included.
+       NOT semantic similarity — that needs an embedding backend)
      - Matching episodes (1-3 as few-shot examples)
      - Active skills (relevant to task type)
      - Trust state (current charge levels)
@@ -70,8 +72,9 @@ PERIODIC (every N sessions)
      - Detect recurring failures (3-5 similar episodes)
      - Propose candidate skills
   8. Skill validation:
-     - Shadow-run against historical episodes
-     - Score against baseline
+     - Trigger-replay against held-out historical episodes
+     - Score precision/recall and lift over the no-skill failure rate
+       (measures when a skill applies, not whether it improves outcomes)
      - Promote, revise, or reject
   9. Memory consolidation:
      - Deduplicate facts
@@ -171,7 +174,7 @@ finalized.
 ### Phase 2: Skill Forge
 7. Pattern detection across episodes
 8. Candidate skill proposal
-9. Shadow validation against history
+9. Trigger-replay validation against held-out history
 10. Skill promotion/rejection pipeline
 
 ### Phase 3: Team Layer

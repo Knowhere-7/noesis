@@ -130,7 +130,7 @@ def run_crescendo(arm: str, tmpdir: str) -> FrictionResult:
         if arm == "baseline":
             ok, _ = store.write(node, author_trust=0.5)
         else:
-            ok, _ = store.write(node)
+            ok = store.write(node).stored
 
         if not ok:
             # Refused. The attacker must re-approach; the chain is not advanced.
