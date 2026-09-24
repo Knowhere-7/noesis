@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "project": "Noesis",
-  "updated_at": "2026-09-21",
+  "updated_at": "2026-09-24",
   "policy": {
     "append_only": true,
     "renumbering_forbidden": true,
@@ -1906,6 +1906,197 @@
           "note": "Repaired in 9009047: WriteResult with no truth value, static guard, call sites converted; each changed module negative-controlled (store 8, skill_forge 1, gateway 2)."
         }
       ]
+    },
+    {
+      "id": "NOE-F-051",
+      "title": "Benchmark negative control could check the wrong episode under an importance tie",
+      "discovered_at": "2026-09-24",
+      "discovered_by": "Local /code-review high (Claude subagent within this session), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "The publish=True control arm reproduces pre-repair behaviour reliably enough to prove the harness can see the attack.",
+      "affected_versions": [
+        "through d12722f (and master a3394cc)"
+      ],
+      "root_cause": "run_agent_path_case's persisted check used next() to find 'the' EPISODE node with no ordering beyond the backend's importance-DESC scan. A session under publish=True writes two episodes (the sanitized autopsy episode and a 'legacy' pre-fix-shape episode), and both get importance 0.6 from _IMPORTANCE_POLICY, so the tie is broken by undefined scan order rather than by which episode actually carries the payload.",
+      "observed_impact": "AP-08's control result could, depending on row order, silently inspect the wrong episode and report containment for an attack that in fact persisted, undermining the specific claim the control exists to support. The current corpus happens not to trigger it (the marker is in every failed step), so this was latent rather than observed.",
+      "evidence": [
+        "path:evidence/code-review-high-2026-09-24.md",
+        "path:benchmarks/harness.py"
+      ],
+      "resolution": "Persistence is now checked as the union of every episode's audit text (value + reflection), removing the dependency on which one a scan returns first.",
+      "fixed_by_commit": "27e151d2cb40604ca8d42bfe2b6a525c1094518e",
+      "regression_tests": [
+        "tests/test_code_review_high_findings.py::TestBenchmarkChecksAllEpisodes (2 cases)"
+      ],
+      "residual_risk": "None known; the fix removes the ordering dependency rather than working around it.",
+      "history": [
+        {
+          "at": "2026-09-24",
+          "status": "open",
+          "note": "code-review high finding 1, harness.py:622."
+        },
+        {
+          "at": "2026-09-24",
+          "status": "fixed",
+          "note": "Repaired in 27e151d; regression tests added and each touched module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-052",
+      "title": "A successful step's output left no trace anywhere, including the audit-only reflection field",
+      "discovered_at": "2026-09-24",
+      "discovered_by": "Local /code-review high (Claude subagent within this session), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Episode.reflection is the human-readable audit narrative, deliberately separated from the provider-visible value.",
+      "affected_versions": [
+        "through d12722f (and master a3394cc)"
+      ],
+      "root_cause": "_find_effective_actions recorded only an action name and tool, never the step's output text, while _find_failed_actions did include a truncated error message for failed steps. A tool call reporting success=True with notable or attacker-influenced content was therefore invisible to both the emitted value (correctly, by design) and the reflection field meant to preserve it for audit.",
+      "observed_impact": "An incident responder reviewing an episode's reflection after the fact had no record of what a successful tool call actually returned, even though the design intent for reflection is exactly to preserve that detail.",
+      "evidence": [
+        "path:evidence/code-review-high-2026-09-24.md",
+        "path:noesis/reflection/autopsy.py"
+      ],
+      "resolution": "_find_effective_actions now appends a bounded excerpt (120 chars) of the step's output, matching the truncation already used for failed-step error messages. Episode.value is unaffected.",
+      "fixed_by_commit": "27e151d2cb40604ca8d42bfe2b6a525c1094518e",
+      "regression_tests": [
+        "tests/test_code_review_high_findings.py::TestSuccessfulStepOutputIsAudited (2 cases)"
+      ],
+      "residual_risk": "The excerpt is truncated; a longer payload is not reconstructable from the episode alone, only its presence is.",
+      "history": [
+        {
+          "at": "2026-09-24",
+          "status": "open",
+          "note": "code-review high finding 2, autopsy.py:427."
+        },
+        {
+          "at": "2026-09-24",
+          "status": "fixed",
+          "note": "Repaired in 27e151d; regression tests added and each touched module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-053",
+      "title": "A tampered SACRED node's faith was logged every session forever instead of being corrected",
+      "discovered_at": "2026-09-24",
+      "discovered_by": "Local /code-review high (Claude subagent within this session), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "The faith tripwire (NOE-F-046) detects and handles any deviation from policy.",
+      "affected_versions": [
+        "through d12722f (and master a3394cc)"
+      ],
+      "root_cause": "_faith_tripwire logged an ERROR and appended to tamper_log for a sacred node, then continued without resetting node.faith or persisting a fix. run_grief_cascade fires at the end of every session, so the same tampered value re-triggered a fresh ERROR and a fresh tamper_log entry every session indefinitely.",
+      "observed_impact": "A single tamper event on a guardrail produced unbounded log growth and repeated alerts, which would drown out genuinely new tamper signals; separately, the CLI and console read node.faith directly, so an operator inspecting the node saw the wrong value indefinitely.",
+      "evidence": [
+        "path:evidence/code-review-high-2026-09-24.md",
+        "path:noesis/governor/grief_cascade.py"
+      ],
+      "resolution": "A tampered sacred node's faith is reset to the policy value and persisted once; sacred immunity to purge is unchanged, so the node is corrected, not force-purged.",
+      "fixed_by_commit": "27e151d2cb40604ca8d42bfe2b6a525c1094518e",
+      "regression_tests": [
+        "tests/test_code_review_high_findings.py::TestSacredTamperIsCorrectedNotReplayed (2 cases)"
+      ],
+      "residual_risk": "None known.",
+      "history": [
+        {
+          "at": "2026-09-24",
+          "status": "open",
+          "note": "code-review high finding 3, grief_cascade.py:137."
+        },
+        {
+          "at": "2026-09-24",
+          "status": "fixed",
+          "note": "Repaired in 27e151d; regression tests added and each touched module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-054",
+      "title": "The provider emission allowlist and the promotion scrub allowlist have no shared source of truth",
+      "discovered_at": "2026-09-24",
+      "discovered_by": "Local /code-review high (Claude subagent within this session), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "low",
+      "status": "fixed",
+      "affected_claim": "Every field a provider can emit for a reviewable node type is reset unless it was itself reviewed.",
+      "affected_versions": [
+        "through d12722f (and master a3394cc)"
+      ],
+      "root_cause": "EMITTED_ALLOWLIST (what providers may render) and MemoryStore._UNREVIEWED_FIELDS (what promotion resets) are independent hand-maintained structures. No current field is both emitted and unscrubbed, but nothing enforces that a future change to one is reflected in the other.",
+      "observed_impact": "A future adapter change or new reviewable field could reopen the class of leak NOE-F-038 closed, with no test failure pointing at the cause.",
+      "evidence": [
+        "path:evidence/code-review-high-2026-09-24.md",
+        "path:noesis/vault/store.py",
+        "path:tests/test_second_wave_hardening.py"
+      ],
+      "resolution": "A cross-check test asserts every emitted, reviewable field (excluding key/value) for each node type appears in the corresponding scrub set. It currently passes with no changes needed; its purpose is to fail loudly on future drift.",
+      "fixed_by_commit": "27e151d2cb40604ca8d42bfe2b6a525c1094518e",
+      "regression_tests": [
+        "tests/test_code_review_high_findings.py::TestScrubCoversEverythingEmittable (1 case)"
+      ],
+      "residual_risk": "The check only covers the four node types with structured reviewable fields (Profile, ProjectState, Episode, Skill); Guardrail and Fact are exempt because value IS the reviewed field.",
+      "history": [
+        {
+          "at": "2026-09-24",
+          "status": "open",
+          "note": "code-review high finding 4, store.py:479. No current live gap; guards the future."
+        },
+        {
+          "at": "2026-09-24",
+          "status": "fixed",
+          "note": "Repaired in 27e151d; regression tests added and each touched module negative-controlled."
+        }
+      ]
+    },
+    {
+      "id": "NOE-F-055",
+      "title": "An unrecognized skill trigger format made a skill permanently un-promotable with no diagnostic",
+      "discovered_at": "2026-09-24",
+      "discovered_by": "Local /code-review high (Claude subagent within this session), verified against source by Claude before repair",
+      "review_class": "first_party_adversarial",
+      "disclosure_scope": "released",
+      "severity": "medium",
+      "status": "fixed",
+      "affected_claim": "Skill validation replays triggers against held-out history and reports why a skill does or does not pass.",
+      "affected_versions": [
+        "through d12722f (and master a3394cc)"
+      ],
+      "root_cause": "_trigger_fires recognizes only the two exact string templates _extract_triggers itself generates. A skill authored any other way — by hand, imported, or produced by a future code path with different phrasing — has triggers that never match either regex, so it fires on zero episodes, accumulates zero shadow runs' worth of evidence, and can never be promoted, with nothing in the logs to explain why.",
+      "observed_impact": "A silent, permanent dead end for any skill not built by _extract_triggers, indistinguishable in the logs from a skill that legitimately never applies to any held-out episode.",
+      "evidence": [
+        "path:evidence/code-review-high-2026-09-24.md",
+        "path:noesis/forge/skill_forge.py"
+      ],
+      "resolution": "validate_skill now logs a warning when none of a skill's trigger conditions are in a recognized format (excluding the manual_trigger placeholder, which is expected to never fire). This does not widen what fires; it makes the dead end observable.",
+      "fixed_by_commit": "27e151d2cb40604ca8d42bfe2b6a525c1094518e",
+      "regression_tests": [
+        "tests/test_code_review_high_findings.py::TestUnrecognizedTriggerIsDiagnosed (3 cases)"
+      ],
+      "residual_risk": "The trigger format itself is unchanged and still only understands the two generated templates; a richer trigger DSL is future work.",
+      "history": [
+        {
+          "at": "2026-09-24",
+          "status": "open",
+          "note": "code-review high finding 5, skill_forge.py:301."
+        },
+        {
+          "at": "2026-09-24",
+          "status": "fixed",
+          "note": "Repaired in 27e151d; regression tests added and each touched module negative-controlled."
+        }
+      ]
     }
   ],
   "current_limitations": [
@@ -2017,6 +2208,10 @@
     {
       "id": "NOE-L-025",
       "statement": "The static guard against reading a WriteResult as a boolean, subscript, or unpack recognises calls by attribute name. Aliasing a write-family method or reaching it through getattr is not caught statically; the type still raises when such code executes."
+    },
+    {
+      "id": "NOE-L-026",
+      "statement": "Six efficiency or cosmetic findings from the same review were confirmed but not individually engineered: register_correction does one get_by_id + one upsert per dependent rather than a batch (N+1 round trips); promote_skill re-runs validate_skill unconditionally, which is intentional (it prevents a caller from forging shadow-run evidence) but its cost against the episode table is unmeasured; get_context_nodes deep-copies the full node graph on every call, which is a deliberate isolation choice (a shallow copy risked being reintroduced under time pressure) and not reconsidered here; the live-nodes visibility filter and the provider-adapter enumeration are each duplicated between the harness and one other module; three Fact counters (confirmation_count, contradiction_count, confirmed) and one Evaluation object are write-only and never read to decide anything. None has a security consequence; consolidating them is future work."
     }
   ],
   "disclosure_gaps": [

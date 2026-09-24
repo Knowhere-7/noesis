@@ -31,7 +31,7 @@ commit, regression tests, residual risk, and status history for every entry.
 
 | Status | Count |
 |---|---:|
-| Fixed | 50 |
+| Fixed | 55 |
 | Open | 0 |
 | Independently certified | 0 |
 
@@ -128,6 +128,11 @@ full collector → candidate → review → promotion path) still passing.
 | NOE-F-048 | `write()` success treated as publication by `promote_skill` and two other callers | Released | Cloud ultrareview + class hunt | Fixed | `a75f664` |
 | NOE-F-049 | Republishing laundered grief and revived purged keys | Released | Class hunt (first-party) | Fixed | `a75f664` |
 | NOE-F-050 | `write()` reported "stored" and "published" as one success value | Released | Follow-through on NOE-F-048 | Fixed | `9009047` |
+| NOE-F-051 | Benchmark control could check the wrong episode under an importance tie | Released | Local `/code-review high` | Fixed | `27e151d` |
+| NOE-F-052 | Successful step output left no trace, even in the audit-only reflection field | Released | Local `/code-review high` | Fixed | `27e151d` |
+| NOE-F-053 | Tampered sacred faith logged every session forever instead of corrected | Released | Local `/code-review high` | Fixed | `27e151d` |
+| NOE-F-054 | Emission and scrub allowlists shared no source of truth | Released | Local `/code-review high` | Fixed | `27e151d` |
+| NOE-F-055 | Unrecognized skill trigger format silently permanent | Released | Local `/code-review high` | Fixed | `27e151d` |
 
 NOE-F-029 to NOE-F-037 come from a review supplied by Ghost on 2026-09-19 whose
 reviewer identity and repository access are not independently established. It
@@ -251,6 +256,11 @@ competitor. All listed corpus measurements are first-party.
 25. (NOE-L-025) The static guard against misreading a `WriteResult`
     recognises calls by attribute name; aliasing or `getattr` is not caught
     statically, though the type still raises when such code runs.
+26. (NOE-L-026) Six efficiency/cosmetic findings from a local
+    `/code-review high` pass were confirmed but not individually fixed
+    (N+1 writes on correction, an unmeasured re-validation cost, a
+    deliberate deep-copy, two small duplications, and write-only
+    counters). None has a security consequence.
 
 Items 14-20 carry their machine-readable `NOE-L-` ids in
 [`evidence/failure-ledger.json`](evidence/failure-ledger.json), which is the
