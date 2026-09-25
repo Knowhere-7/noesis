@@ -155,6 +155,9 @@ def test_no_unresolved_limitation_claims_a_fixed_finding_is_open():
 
 def test_public_documents_link_and_acknowledge_the_failure_ledger():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    product_anchor = (ROOT / "PRODUCT_ANCHOR.md").read_text(encoding="utf-8")
+    review_request = (ROOT / "REVIEW-REQUEST.md").read_text(encoding="utf-8")
+    project_metadata = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     benchmark_readme = (
         ROOT / "benchmarks" / "README.md"
     ).read_text(encoding="utf-8")
@@ -164,6 +167,17 @@ def test_public_documents_link_and_acknowledge_the_failure_ledger():
     assert "[public failure ledger](../FAILURE_LEDGER.md)" in benchmark_readme
     assert "NOE-F-026" in ledger
     assert "does not enforce a changed value" in ledger
+    assert "| Semantic search | Yes | Yes |" not in product_anchor
+    assert (
+        "Lexical relevance + trust; no semantic-search claim" in product_anchor
+    )
+    assert "open-source core" not in product_anchor
+    assert "public proprietary core" in product_anchor
+    assert 'license = "LicenseRef-Proprietary"' in project_metadata
+    assert '"noesis.console" = ["dashboard.html"]' in project_metadata
+    assert "*Proprietary." in readme
+    assert "36 findings" in review_request
+    assert "The 28 entries" not in review_request
 
 
 def test_candidate_promotion_requires_value_to_change(tmp_path):

@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "Provenance-aware publication boundary for persistent AI-agent memory."
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "Proprietary"}
+license = "LicenseRef-Proprietary"
 authors = [
     {name = "Ghost (Jamarian Payne)"},
 ]
@@ -47,6 +47,9 @@ noesis = "noesis.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["noesis*"]
+
+[tool.setuptools.package-data]
+"noesis.console" = ["dashboard.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

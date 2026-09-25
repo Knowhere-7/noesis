@@ -110,7 +110,7 @@ already in it. If you want your involvement uncredited, that's the default.
 
 ## What "bad news" is worth to us
 
-The 28 entries in that ledger include a retracted headline benchmark number
+The 36 entries in that ledger include a retracted headline benchmark number
 (we published 29%, the real figure against a competent attacker was 100%), a
 friction result that claimed 60 turns after executing 15, and every attack that
 used to succeed. The failures are the point — passing numbers are only credible

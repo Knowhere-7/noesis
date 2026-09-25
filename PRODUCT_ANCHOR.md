@@ -90,7 +90,7 @@ PERIODIC (every N sessions)
 
 - Multi-agent swarm coordination (v2 — the substrate is ready but single-agent ships first)
 - Hosted multi-user console (a local inspection console is included)
-- Billing/payments (open-source core, commercial layers later)
+- Billing/payments (public proprietary core, commercial layers later)
 - Model training or fine-tuning (Noesis is inference-time governance, not training)
 - Real-time chat UI (Noesis is middleware, not a chat app)
 
@@ -107,7 +107,7 @@ library, not a measured benchmark of the named products.
 | Feature | LangMem / Mem0 / Zep | Noesis |
 |---------|----------------------|--------|
 | Persistent memory | Yes | Yes |
-| Semantic search | Yes | Yes |
+| Retrieval approach | Typically semantic/vector | Lexical relevance + trust; no semantic-search claim |
 | Model agnostic | Partial | Full |
 | Self-reflection | No | Yes — session autopsy + project retrospective |
 | Skill generation | No | Experimental — structurally checked, not outcome-validated |
